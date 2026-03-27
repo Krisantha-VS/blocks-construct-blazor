@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "css:build": "npx @tailwindcss/cli -i ./src/Server/Styles/app.tailwind.css -o ./src/Server/wwwroot/app.tailwind.css --minify",
-    "css:watch": "npx @tailwindcss/cli -i ./src/Server/Styles/app.tailwind.css -o ./src/Server/wwwroot/app.tailwind.css --watch"
+    "css:build": "npx @tailwindcss/cli -i ./src/Server/wwwroot/app.tailwind.css.src -o ./src/Server/wwwroot/app.tailwind.css --minify",
+    "css:watch": "npx @tailwindcss/cli -i ./src/Server/wwwroot/app.tailwind.css.src -o ./src/Server/wwwroot/app.tailwind.css --watch"
   },
   "repository": {
     "type": "git",
