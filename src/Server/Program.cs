@@ -7,12 +7,28 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents()
     .AddInteractiveWebAssemblyComponents();
 
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+
+builder.Services.AddScoped<HttpClient>(sp =>
+{
+    var navigationManager = sp.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+    return new HttpClient
+    {
+        BaseAddress = new Uri(navigationManager.BaseUri)
+    };
+});
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseWebAssemblyDebugging();
+
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 else
 {
