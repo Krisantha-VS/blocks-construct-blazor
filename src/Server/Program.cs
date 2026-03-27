@@ -1,10 +1,8 @@
 using Server.Components.Layout;
-using Services;
-using Services.Interfaces;
+using Server.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents()
     .AddInteractiveWebAssemblyComponents();
@@ -15,12 +13,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Register application services
-builder.Services.AddScoped<ISalesOrderService>(sp =>
-{
-    var env = sp.GetRequiredService<IWebHostEnvironment>();
-    return new SalesOrderService(env.WebRootPath);
-});
+builder.Services.AddApplicationServices(builder.Environment.WebRootPath);
 
 var app = builder.Build();
 

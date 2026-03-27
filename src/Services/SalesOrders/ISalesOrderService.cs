@@ -1,6 +1,4 @@
-using Services.Models;
-
-namespace Services.Interfaces;
+namespace Services.SalesOrders;
 
 public interface ISalesOrderService
 {

@@ -1,9 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Services.Interfaces;
-using Services.Models;
 
-namespace Services;
+namespace Services.SalesOrders;
 
 public class SalesOrderService : ISalesOrderService
 {

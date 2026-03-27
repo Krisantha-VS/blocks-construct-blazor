@@ -1,4 +1,4 @@
-namespace Services.Models;
+namespace Services.SalesOrders;
 
 public class SalesOrder
 {
