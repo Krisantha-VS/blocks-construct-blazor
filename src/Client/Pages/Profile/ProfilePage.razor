@@ -1,9 +1,9 @@
 @page "/profile"
 @rendermode InteractiveAuto
-@attribute [Authorize]
 @inject IUserService UserService
 
 <PageTitle>My Profile</PageTitle>
+<RequireClientAuth />
 
 <div class="flex w-full flex-col">
     <div class="mb-5 flex items-center">

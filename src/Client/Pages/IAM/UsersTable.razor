@@ -1,9 +1,9 @@
 @page "/identity-management"
 @rendermode InteractiveAuto
-@attribute [Authorize]
 @inject IUserService UserService
 
 <PageTitle>Identity &amp; Access Management</PageTitle>
+<RequireClientAuth />
 
 <div class="flex h-full w-full flex-col gap-6">
     <div class="flex items-center justify-between">
@@ -21,6 +21,13 @@
     </div>
 
     <div class="flex-1 overflow-hidden rounded-lg border bg-card">
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <div class="mx-4 mt-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
+                @_errorMessage
+            </div>
+        }
+
         @if (_isLoading)
         {
             <div class="flex h-40 items-center justify-center"><LoadingSpinner /></div>
@@ -128,6 +135,7 @@
     private int _totalCount;
     private string _searchEmail = "";
     private string _searchName = "";
+    private string _errorMessage = "";
 
     private IamUser? _selectedUser;
     private IamUser? _actionUser;
@@ -136,15 +144,38 @@
     private bool _showResendConfirm;
     private System.Timers.Timer? _debounce;
 
-    protected override async Task OnInitializedAsync() => await LoadUsers();
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await LoadUsers();
+        await InvokeAsync(StateHasChanged);
+    }
 
     private async Task LoadUsers()
     {
         _isLoading = true;
-        var result = await UserService.GetUsersAsync(_page, _pageSize, _searchEmail, _searchName);
-        _users = result.Data;
-        _totalCount = result.TotalCount;
-        _isLoading = false;
+        _errorMessage = "";
+
+        try
+        {
+            var result = await UserService.GetUsersAsync(_page, _pageSize, _searchEmail, _searchName);
+            _users = result.Data;
+            _totalCount = result.TotalCount;
+        }
+        catch
+        {
+            _users = [];
+            _totalCount = 0;
+            _errorMessage = "Unable to load users right now. Please try again.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private Task OnFilterChanged()

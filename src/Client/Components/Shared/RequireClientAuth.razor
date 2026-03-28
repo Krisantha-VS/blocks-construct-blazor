@@ -1,0 +1,18 @@
+@inject IAuthService AuthService
+@inject NavigationManager Nav
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        var token = await AuthService.GetAccessTokenAsync();
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            Nav.NavigateTo("/login", replace: true);
+        }
+    }
+}

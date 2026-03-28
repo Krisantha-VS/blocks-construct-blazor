@@ -1,11 +1,11 @@
 @page "/inventory/add"
 @page "/inventory/{ItemId}/edit"
 @rendermode InteractiveAuto
-@attribute [Authorize]
 @inject IInventoryService InventoryService
 @inject NavigationManager Nav
 
 <PageTitle>@(_isEdit ? "Edit Item" : "Add Item")</PageTitle>
+<RequireClientAuth />
 
 <div class="flex max-w-2xl flex-col gap-6">
     <div class="flex items-center gap-4">

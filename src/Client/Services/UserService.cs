@@ -30,9 +30,12 @@ public class UserService(HttpClient http, IConfiguration config) : IUserService
             filter = new { email = email ?? "", name = name ?? "" },
             projectKey = ProjectKey
         };
-        return await http.PostAsJsonAsync("/idp/v1/Iam/GetUsers", body)
-                   .ContinueWith(t => t.Result.Content.ReadFromJsonAsync<PagedResult<IamUser>>())
-                   .Unwrap() ?? new PagedResult<IamUser>();
+
+        var response = await http.PostAsJsonAsync("/idp/v1/Iam/GetUsers", body);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync<PagedResult<IamUser>>()
+            ?? new PagedResult<IamUser>();
     }
 
     public async Task<UserProfile?> GetCurrentProfileAsync() =>

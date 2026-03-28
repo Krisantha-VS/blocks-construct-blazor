@@ -1,10 +1,10 @@
 @page "/inventory/{ItemId}"
 @rendermode InteractiveAuto
-@attribute [Authorize]
 @inject IInventoryService InventoryService
 @inject NavigationManager Nav
 
 <PageTitle>@(_item?.ItemName ?? "Item Details")</PageTitle>
+<RequireClientAuth />
 
 @if (_isLoading)
 {
