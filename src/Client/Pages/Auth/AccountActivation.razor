@@ -3,13 +3,15 @@
 @layout AuthLayout
 @inject IAuthService AuthService
 @inject NavigationManager Nav
+@inject LanguageState Lang
+@implements IDisposable
 
-<PageTitle>Set Your Password</PageTitle>
+<PageTitle>@T("SET_YOUR_PASSWORD")</PageTitle>
 
 <div class="flex flex-col gap-6">
     <div>
-        <h1 class="text-2xl font-bold text-high-emphasis">Set Your Password</h1>
-        <p class="mt-1 text-sm text-medium-emphasis">Secure your account by creating a strong password.</p>
+        <h1 class="text-2xl font-bold text-high-emphasis">@T("SET_YOUR_PASSWORD")</h1>
+        <p class="mt-1 text-sm text-medium-emphasis">@Tr("SECURE_ACCOUNT_STRONG_PASSWORD", "Secure your account by creating a strong password.")</p>
     </div>
 
     @if (!string.IsNullOrEmpty(_errorMessage))
@@ -21,22 +23,22 @@
         <DataAnnotationsValidator />
 
         <div class="flex flex-col gap-1">
-            <label class="text-sm font-normal text-high-emphasis">New Password</label>
-            <PasswordInput @bind-Value="_model.Password" Placeholder="Create a password" />
+            <label class="text-sm font-normal text-high-emphasis">@T("NEW_PASSWORD")</label>
+            <PasswordInput @bind-Value="_model.Password" Placeholder="@T("SET_YOUR_PASSWORD")" />
             <ValidationMessage For="@(() => _model.Password)" class="text-xs text-destructive" />
             <PasswordStrengthBar Password="@_model.Password" />
         </div>
 
         <div class="flex flex-col gap-1">
-            <label class="text-sm font-normal text-high-emphasis">Confirm Password</label>
-            <PasswordInput @bind-Value="_model.ConfirmPassword" Placeholder="Confirm your password" />
+            <label class="text-sm font-normal text-high-emphasis">@T("CONFIRM_PASSWORD")</label>
+            <PasswordInput @bind-Value="_model.ConfirmPassword" Placeholder="@T("CONFIRM_YOUR_PASSWORD")" />
             <ValidationMessage For="@(() => _model.ConfirmPassword)" class="text-xs text-destructive" />
         </div>
 
         <button type="submit"
                 class="mt-4 w-full rounded-md bg-primary py-2.5 text-sm font-extrabold text-white disabled:opacity-50 hover:bg-primary/90 transition-colors"
                 disabled="@_isLoading">
-            @(_isLoading ? "Activating..." : "Activate Account")
+            @(_isLoading ? T("VERIFYING") : T("CONFIRM"))
         </button>
     </EditForm>
 </div>
@@ -45,6 +47,11 @@
     private SetPasswordRequest _model = new();
     private string _errorMessage = "";
     private bool _isLoading;
+
+    protected override void OnInitialized()
+    {
+        Lang.OnChange += HandleLanguageChanged;
+    }
 
     [SupplyParameterFromQuery(Name = "code")]
     private string Code { get; set; } = "";
@@ -66,11 +73,29 @@
         }
         catch
         {
-            _errorMessage = "Activation failed. The link may have expired - please contact support.";
+            _errorMessage = $"{Tr("VERIFICATION_FAILED", "Activation failed.")} {Tr("PLEASE_TRY_AGAIN", "Please try again.")}";
         }
         finally
         {
             _isLoading = false;
         }
+    }
+
+    private string T(string key) => Lang[key];
+
+    private string Tr(string key, string fallback)
+    {
+        var value = Lang[key];
+        return string.Equals(value, key, StringComparison.OrdinalIgnoreCase) ? fallback : value;
+    }
+
+    private void HandleLanguageChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Lang.OnChange -= HandleLanguageChanged;
     }
 }

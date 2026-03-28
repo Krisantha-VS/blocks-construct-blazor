@@ -2,30 +2,58 @@
 @rendermode InteractiveAuto
 @inject IInventoryService InventoryService
 @inject NavigationManager Nav
+@inject LanguageState Lang
+@implements IDisposable
 
-<PageTitle>Inventory</PageTitle>
+<PageTitle>@T("INVENTORY")</PageTitle>
 <RequireClientAuth />
 
 <div class="flex w-full flex-col gap-6">
-    <div class="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-        <div class="flex flex-wrap gap-3">
-            <input type="text" @bind="_search" @bind:event="oninput" @bind:after="OnFilterChanged" placeholder="Search items" class="form-input max-w-xs" />
-            <select @bind="_category" @bind:after="OnFilterChanged" class="form-input max-w-xs">
-                <option value="">All Categories</option>
-                <option value="Electronics">Electronics</option>
-                <option value="Office">Office</option>
-                <option value="Hardware">Hardware</option>
-            </select>
-            <select @bind="_status" @bind:after="OnFilterChanged" class="form-input max-w-xs">
-                <option value="">All Status</option>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-            </select>
+    <div class="flex flex-col gap-1">
+        <h1 class="text-2xl font-bold tracking-tight text-high-emphasis">@T("INVENTORY")</h1>
+        <p class="text-sm text-medium-emphasis">@Tr("GENERAL_INFO", "Search, filter, and manage inventory records from one place.")</p>
+    </div>
+
+    <div class="rounded-lg border bg-card p-4 sm:p-5">
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-4">
+            <div class="flex flex-col gap-1.5 md:col-span-2 xl:col-span-2">
+                <label for="inventory-search" class="text-xs font-semibold uppercase tracking-wide text-medium-emphasis">@T("SEARCH")</label>
+                <input id="inventory-search" type="text" @bind="_search" @bind:event="oninput" @bind:after="OnFilterChanged" placeholder="@Tr("SEARCH_BY_DESCRIPTION", "Search by item name, supplier, or location")" class="form-input" />
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+                <label for="inventory-category" class="text-xs font-semibold uppercase tracking-wide text-medium-emphasis">@T("CATEGORY")</label>
+                <select id="inventory-category" @bind="_category" @bind:after="OnFilterChanged" class="form-input">
+                    <option value="">@T("ALL")</option>
+                    <option value="Electronics">Electronics</option>
+                    <option value="Office">Office</option>
+                    <option value="Hardware">Hardware</option>
+                </select>
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+                <label for="inventory-status" class="text-xs font-semibold uppercase tracking-wide text-medium-emphasis">@T("STATUS")</label>
+                <select id="inventory-status" @bind="_status" @bind:after="OnFilterChanged" class="form-input">
+                    <option value="">@T("ALL")</option>
+                    <option value="Active">@T("ACTIVE")</option>
+                    <option value="Inactive">@T("INACTIVE")</option>
+                </select>
+            </div>
         </div>
 
-        <button @onclick='() => Nav.NavigateTo("/inventory/add")' class="flex shrink-0 items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-extrabold text-white hover:bg-primary/90">
-            Add Item
-        </button>
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+            <button @onclick="ClearFilters"
+                    class="rounded-md border border-border px-3 py-2 text-sm font-medium text-medium-emphasis hover:bg-muted hover:text-high-emphasis"
+                    type="button">
+                @T("CLEAR_FILTERS")
+            </button>
+
+            <button @onclick='() => Nav.NavigateTo("/inventory/add")'
+                    class="flex shrink-0 items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90"
+                    type="button">
+                @T("ADD_ITEM")
+            </button>
+        </div>
     </div>
 
     <div class="overflow-hidden rounded-lg border bg-card">
@@ -39,20 +67,20 @@
                 <table class="w-full text-sm">
                     <thead class="bg-muted/50">
                         <tr>
-                            <th class="px-4 py-3 text-left text-sm font-medium text-medium-emphasis">Item</th>
-                            <th class="hidden px-4 py-3 text-left text-sm font-medium text-medium-emphasis md:table-cell">Category</th>
-                            <th class="hidden px-4 py-3 text-left text-sm font-medium text-medium-emphasis lg:table-cell">Supplier</th>
-                            <th class="hidden px-4 py-3 text-left text-sm font-medium text-medium-emphasis lg:table-cell">Location</th>
-                            <th class="px-4 py-3 text-left text-sm font-medium text-medium-emphasis">Stock</th>
-                            <th class="hidden px-4 py-3 text-left text-sm font-medium text-medium-emphasis md:table-cell">Price</th>
-                            <th class="px-4 py-3 text-left text-sm font-medium text-medium-emphasis">Status</th>
-                            <th class="px-4 py-3 text-right text-sm font-medium text-medium-emphasis">Actions</th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-medium-emphasis">@T("ITEM")</th>
+                            <th class="hidden px-4 py-3 text-left text-sm font-medium text-medium-emphasis md:table-cell">@T("CATEGORY")</th>
+                            <th class="hidden px-4 py-3 text-left text-sm font-medium text-medium-emphasis lg:table-cell">@T("SUPPLIER")</th>
+                            <th class="hidden px-4 py-3 text-left text-sm font-medium text-medium-emphasis lg:table-cell">@T("ITEM_LOCATION")</th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-medium-emphasis">@T("STOCK")</th>
+                            <th class="hidden px-4 py-3 text-left text-sm font-medium text-medium-emphasis md:table-cell">@T("PRICE")</th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-medium-emphasis">@T("STATUS")</th>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-medium-emphasis">@T("ACTION")</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-border">
                         @if (_items.Count == 0)
                         {
-                            <tr><td colspan="8" class="px-4 py-12 text-center text-medium-emphasis">No items found.</td></tr>
+                            <tr><td colspan="8" class="px-4 py-12 text-center text-medium-emphasis">@Tr("NO_DATA_FOUND", "No items found.")</td></tr>
                         }
                         else
                         {
@@ -68,7 +96,11 @@
                                     <td class="px-4 py-3">
                                         @if (string.Equals(item.Status, "Active", StringComparison.OrdinalIgnoreCase))
                                         {
-                                            <span class="inline-flex items-center rounded-full border border-success px-2.5 py-0.5 text-xs font-medium text-success">Active</span>
+                                            <span class="inline-flex items-center rounded-full border border-success px-2.5 py-0.5 text-xs font-medium text-success">@T("ACTIVE")</span>
+                                        }
+                                        else if (string.Equals(item.Status, "Inactive", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            <span class="inline-flex items-center rounded-full border border-red-300 px-2.5 py-0.5 text-xs font-medium text-red-600">@T("INACTIVE")</span>
                                         }
                                         else
                                         {
@@ -77,8 +109,8 @@
                                     </td>
                                     <td class="px-4 py-3 text-right" @onclick:stopPropagation="true">
                                         <div class="flex items-center justify-end gap-1">
-                                            <button class="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted" @onclick='() => Nav.NavigateTo($"/inventory/{item.ItemId}/edit")'>Edit</button>
-                                            <button class="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50" @onclick="() => ConfirmDelete(item)">Delete</button>
+                                            <button class="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted" @onclick='() => Nav.NavigateTo($"/inventory/{item.ItemId}/edit")'>@T("EDIT")</button>
+                                            <button class="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50" @onclick="() => ConfirmDelete(item)">@T("DELETE")</button>
                                         </div>
                                     </td>
                                 </tr>
@@ -89,11 +121,11 @@
             </div>
 
             <div class="flex items-center justify-between border-t px-4 py-3 text-sm text-medium-emphasis">
-                <span>Showing @(Math.Min(_page * _pageSize + 1, _totalCount))–@(Math.Min((_page + 1) * _pageSize, _totalCount)) of @_totalCount</span>
+                <span>@Tr("LIST", "Showing") @(Math.Min(_page * _pageSize + 1, _totalCount))–@(Math.Min((_page + 1) * _pageSize, _totalCount)) @Tr("DATA_TABLE_OF", "of") @_totalCount</span>
                 <div class="flex gap-2">
-                    <button class="rounded-md border px-3 py-1 text-sm disabled:opacity-40 hover:bg-muted" @onclick="PrevPage" disabled="@(_page == 0)">← Previous</button>
-                    <span class="self-center px-1">Page @(_page + 1)</span>
-                    <button class="rounded-md border px-3 py-1 text-sm disabled:opacity-40 hover:bg-muted" @onclick="NextPage" disabled="@((_page + 1) * _pageSize >= _totalCount)">Next →</button>
+                    <button class="rounded-md border px-3 py-1 text-sm disabled:opacity-40 hover:bg-muted" @onclick="PrevPage" disabled="@(_page == 0)">← @T("PREVIOUS")</button>
+                    <span class="self-center px-1">@T("PAGE") @(_page + 1)</span>
+                    <button class="rounded-md border px-3 py-1 text-sm disabled:opacity-40 hover:bg-muted" @onclick="NextPage" disabled="@((_page + 1) * _pageSize >= _totalCount)">@T("NEXT") →</button>
                 </div>
             </div>
         }
@@ -101,9 +133,9 @@
 </div>
 
 <ConfirmModal IsOpen="_showDeleteConfirm"
-              Title="Delete Item"
-              Description="@($"Delete \"{_deleteTarget?.ItemName}\"? This cannot be undone.")"
-              ConfirmLabel="Delete"
+              Title="@T("DELETE")"
+              Description="@($"{Tr("ARE_YOU_SURE", "Are you sure?")} \"{_deleteTarget?.ItemName}\"? {Tr("THIS_ACTION_CANNOT_BE_UNDONE", "This cannot be undone.")}")"
+              ConfirmLabel="@T("DELETE")"
               ConfirmClass="bg-red-600 text-white hover:bg-red-700"
               OnConfirm="ExecuteDelete"
               OnCancel="() => _showDeleteConfirm = false" />
@@ -121,6 +153,11 @@
     private InventoryItem? _deleteTarget;
     private bool _showDeleteConfirm;
     private System.Timers.Timer? _debounce;
+
+    protected override void OnInitialized()
+    {
+        Lang.OnChange += HandleLanguageChanged;
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -167,6 +204,15 @@
         return Task.CompletedTask;
     }
 
+    private async Task ClearFilters()
+    {
+        _search = string.Empty;
+        _category = string.Empty;
+        _status = string.Empty;
+        _page = 0;
+        await LoadItems();
+    }
+
     private async Task NextPage() { _page++; await LoadItems(); }
     private async Task PrevPage() { if (_page > 0) { _page--; await LoadItems(); } }
 
@@ -177,5 +223,25 @@
         if (_deleteTarget is not null) await InventoryService.DeleteItemAsync(_deleteTarget.ItemId);
         _showDeleteConfirm = false;
         await LoadItems();
+    }
+
+    private string T(string key) => Lang[key];
+
+    private string Tr(string key, string fallback)
+    {
+        var value = Lang[key];
+        return string.Equals(value, key, StringComparison.OrdinalIgnoreCase) ? fallback : value;
+    }
+
+    private void HandleLanguageChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Lang.OnChange -= HandleLanguageChanged;
+        _debounce?.Stop();
+        _debounce?.Dispose();
     }
 }

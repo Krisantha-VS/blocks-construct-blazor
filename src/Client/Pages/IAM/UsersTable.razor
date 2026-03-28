@@ -1,23 +1,25 @@
 @page "/identity-management"
 @rendermode InteractiveAuto
 @inject IUserService UserService
+@inject LanguageState Lang
+@implements IDisposable
 
-<PageTitle>Identity &amp; Access Management</PageTitle>
+<PageTitle>@T("IDENTITY_ACCESS_MANAGEMENT")</PageTitle>
 <RequireClientAuth />
 
 <div class="flex h-full w-full flex-col gap-6">
     <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-bold tracking-tight text-high-emphasis">Identity &amp; Access Management</h1>
+        <h1 class="text-2xl font-bold tracking-tight text-high-emphasis">@T("IDENTITY_ACCESS_MANAGEMENT")</h1>
         <AuthorizeView Roles="admin">
             <Authorized>
-                <button class="rounded bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90" @onclick="() => _showAddUser = true">Add User</button>
+                <button class="rounded bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90" @onclick="() => _showAddUser = true">@T("ADD_USER")</button>
             </Authorized>
         </AuthorizeView>
     </div>
 
     <div class="flex flex-wrap gap-3">
-        <input type="text" @bind="_searchEmail" @bind:event="oninput" @bind:after="OnFilterChanged" placeholder="Search by email" class="form-input max-w-xs" />
-        <input type="text" @bind="_searchName" @bind:event="oninput" @bind:after="OnFilterChanged" placeholder="Search by name" class="form-input max-w-xs" />
+        <input type="text" @bind="_searchEmail" @bind:event="oninput" @bind:after="OnFilterChanged" placeholder="@Tr("ENTER_YOUR_EMAIL_ADDRESS", "Search by email")" class="form-input max-w-xs" />
+        <input type="text" @bind="_searchName" @bind:event="oninput" @bind:after="OnFilterChanged" placeholder="@Tr("SEARCH_BY", "Search by name")" class="form-input max-w-xs" />
     </div>
 
     <div class="flex-1 overflow-hidden rounded-lg border bg-card">
@@ -38,19 +40,19 @@
                 <table class="w-full text-sm">
                     <thead class="bg-muted/50">
                         <tr>
-                            <th class="px-4 py-3 text-left text-sm font-medium text-medium-emphasis">Name</th>
-                            <th class="hidden px-4 py-3 text-left text-sm font-medium text-medium-emphasis md:table-cell">Email</th>
-                            <th class="hidden px-4 py-3 text-left text-sm font-medium text-medium-emphasis lg:table-cell">MFA</th>
-                            <th class="hidden px-4 py-3 text-left text-sm font-medium text-medium-emphasis lg:table-cell">Joined</th>
-                            <th class="hidden px-4 py-3 text-left text-sm font-medium text-medium-emphasis lg:table-cell">Last Login</th>
-                            <th class="px-4 py-3 text-left text-sm font-medium text-medium-emphasis">Status</th>
-                            <th class="px-4 py-3 text-right text-sm font-medium text-medium-emphasis">Actions</th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-medium-emphasis">@T("NAME")</th>
+                            <th class="hidden px-4 py-3 text-left text-sm font-medium text-medium-emphasis md:table-cell">@T("EMAIL")</th>
+                            <th class="hidden px-4 py-3 text-left text-sm font-medium text-medium-emphasis lg:table-cell">@T("MFA")</th>
+                            <th class="hidden px-4 py-3 text-left text-sm font-medium text-medium-emphasis lg:table-cell">@T("JOINED_ON")</th>
+                            <th class="hidden px-4 py-3 text-left text-sm font-medium text-medium-emphasis lg:table-cell">@T("LAST_LOGIN")</th>
+                            <th class="px-4 py-3 text-left text-sm font-medium text-medium-emphasis">@T("STATUS")</th>
+                            <th class="px-4 py-3 text-right text-sm font-medium text-medium-emphasis">@T("ACTION")</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-border">
                         @if (_users.Count == 0)
                         {
-                            <tr><td colspan="7" class="px-4 py-12 text-center text-medium-emphasis">No users found.</td></tr>
+                            <tr><td colspan="7" class="px-4 py-12 text-center text-medium-emphasis">@Tr("NO_RESULTS_FOUND", "No users found.")</td></tr>
                         }
                         else
                         {
@@ -62,11 +64,11 @@
                                     <td class="hidden px-4 py-3 lg:table-cell">
                                         @if (user.MfaEnabled)
                                         {
-                                            <span class="text-success">Enabled</span>
+                                            <span class="text-success">@T("ENABLED")</span>
                                         }
                                         else
                                         {
-                                            <span class="text-medium-emphasis">Disabled</span>
+                                            <span class="text-medium-emphasis">@T("DISABLED")</span>
                                         }
                                     </td>
                                     <td class="hidden px-4 py-3 text-medium-emphasis lg:table-cell">@user.CreatedDate.ToString("dd MMM yyyy")</td>
@@ -74,15 +76,15 @@
                                     <td class="px-4 py-3">
                                         @if (user.Active)
                                         {
-                                            <span class="inline-flex items-center rounded-full border border-success px-2.5 py-0.5 text-xs font-medium text-success">Active</span>
+                                            <span class="inline-flex items-center rounded-full border border-success px-2.5 py-0.5 text-xs font-medium text-success">@T("ACTIVE")</span>
                                         }
                                         else
                                         {
-                                            <span class="inline-flex items-center rounded-full border border-red-300 px-2.5 py-0.5 text-xs font-medium text-red-600">Inactive</span>
+                                            <span class="inline-flex items-center rounded-full border border-red-300 px-2.5 py-0.5 text-xs font-medium text-red-600">@T("INACTIVE")</span>
                                         }
                                     </td>
                                     <td class="px-4 py-3 text-right" @onclick:stopPropagation="true">
-                                        <button class="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted" @onclick="() => ConfirmReset(user)">Reset Password</button>
+                                        <button class="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted" @onclick="() => ConfirmReset(user)">@T("RESET_PASSWORD")</button>
                                     </td>
                                 </tr>
                             }
@@ -144,6 +146,11 @@
     private bool _showResendConfirm;
     private System.Timers.Timer? _debounce;
 
+    protected override void OnInitialized()
+    {
+        Lang.OnChange += HandleLanguageChanged;
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender)
@@ -176,6 +183,26 @@
         {
             _isLoading = false;
         }
+    }
+
+    private string T(string key) => Lang[key];
+
+    private string Tr(string key, string fallback)
+    {
+        var value = Lang[key];
+        return string.Equals(value, key, StringComparison.OrdinalIgnoreCase) ? fallback : value;
+    }
+
+    private void HandleLanguageChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Lang.OnChange -= HandleLanguageChanged;
+        _debounce?.Stop();
+        _debounce?.Dispose();
     }
 
     private Task OnFilterChanged()

@@ -30,7 +30,7 @@ public sealed class LanguageState(
         ["/reset-password"] = ["common", "auth"],
         ["/activate"] = ["common", "auth"],
         ["/activation-success"] = ["common", "auth"],
-        ["/verify-mfa"] = ["common", "auth"],
+        ["/verify-mfa"] = ["common", "auth", "mfa"],
         ["/email-sent"] = ["common", "auth"],
         ["/identity-management"] = ["common", "iam"],
         ["/inventory"] = ["common", "inventory"],

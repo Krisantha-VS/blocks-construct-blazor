@@ -1,8 +1,10 @@
 @page "/activation-success"
 @rendermode InteractiveAuto
 @layout AuthLayout
+@inject LanguageState Lang
+@implements IDisposable
 
-<PageTitle>Account Activated</PageTitle>
+<PageTitle>@T("SUCCESS")</PageTitle>
 
 <div class="flex flex-col gap-6 text-center">
     <div class="flex justify-center">
@@ -14,13 +16,38 @@
     </div>
 
     <div>
-        <h1 class="text-2xl font-bold text-high-emphasis">Account Activated!</h1>
+        <h1 class="text-2xl font-bold text-high-emphasis">@T("ACCOUNT_ACTIVATED_SUCCESSFULLY")</h1>
         <p class="mt-2 text-base leading-6 text-medium-emphasis">
-            Your account has been successfully activated. You can now log in.
+            @T("SUCCESSFULLY_SET_PASSWORD")
         </p>
     </div>
 
     <a href="/login" class="block w-full rounded-md bg-primary py-2.5 text-sm font-extrabold text-white hover:bg-primary/90 transition-colors">
-        Go to Login
+        @T("GO_TO_LOGIN")
     </a>
 </div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Lang.OnChange += HandleLanguageChanged;
+    }
+
+    private string T(string key) => Lang[key];
+
+    private string Tr(string key, string fallback)
+    {
+        var value = Lang[key];
+        return string.Equals(value, key, StringComparison.OrdinalIgnoreCase) ? fallback : value;
+    }
+
+    private void HandleLanguageChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Lang.OnChange -= HandleLanguageChanged;
+    }
+}

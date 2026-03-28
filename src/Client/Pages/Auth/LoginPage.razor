@@ -4,22 +4,24 @@
 @inject IAuthService AuthService
 @inject AppAuthStateProvider AuthState
 @inject NavigationManager Nav
+@inject LanguageState Lang
+@implements IDisposable
 
-<PageTitle>Log In</PageTitle>
+<PageTitle>@T("LOG_IN")</PageTitle>
 
 <div class="flex flex-col gap-6">
     <div>
-        <h1 class="text-2xl font-bold text-high-emphasis">Log In</h1>
+        <h1 class="text-2xl font-bold text-high-emphasis">@T("LOG_IN")</h1>
         <div class="mt-1 flex items-center gap-1">
-            <span class="text-sm font-normal text-medium-emphasis">Don't have an account?</span>
-            <a href="/signup" class="text-sm font-bold text-primary hover:underline">Sign Up</a>
+            <span class="text-sm font-normal text-medium-emphasis">@T("DONT_HAVE_ACCOUNT")</span>
+            <a href="/signup" class="text-sm font-bold text-primary hover:underline">@T("SIGN_UP")</a>
         </div>
     </div>
 
     @if (!string.IsNullOrEmpty(_errorMessage))
     {
         <div class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
-            <strong>Invalid credentials.</strong> @_errorMessage
+            <strong>@T("INVALID_CREDENTIALS")</strong> @_errorMessage
         </div>
     }
 
@@ -27,29 +29,29 @@
         <DataAnnotationsValidator />
 
         <div class="flex flex-col gap-1">
-            <label class="text-sm font-normal text-high-emphasis">Email</label>
+            <label class="text-sm font-normal text-high-emphasis">@T("EMAIL")</label>
             <InputText @bind-Value="_model.Username"
                        class="w-full rounded-md border border-input px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                       placeholder="Enter your email" />
+                       placeholder="@T("ENTER_YOUR_EMAIL_ADDRESS")" />
             <ValidationMessage For="@(() => _model.Username)" class="text-xs text-destructive" />
         </div>
 
         <div class="flex flex-col gap-1">
-            <label class="text-sm font-normal text-high-emphasis">Password</label>
-            <PasswordInput @bind-Value="_model.Password" Placeholder="Enter your password" />
+            <label class="text-sm font-normal text-high-emphasis">@T("PASSWORD")</label>
+            <PasswordInput @bind-Value="_model.Password" Placeholder="@T("ENTER_YOUR_PASSWORD")" />
             <ValidationMessage For="@(() => _model.Password)" class="text-xs text-destructive" />
         </div>
 
         <div class="flex justify-end">
             <a href="/forgot-password" class="text-sm text-primary hover:text-primary-600 hover:underline">
-                Forgot Password?
+                @T("FORGOT_PASSWORD")
             </a>
         </div>
 
         <button type="submit"
                 class="w-full rounded-md bg-primary py-2.5 text-sm font-extrabold text-white disabled:opacity-50 hover:bg-primary/90 transition-colors"
                 disabled="@_isLoading">
-            @(_isLoading ? "Logging in..." : "Log In")
+            @(_isLoading ? T("LOADING") : T("LOG_IN"))
         </button>
     </EditForm>
 </div>
@@ -58,6 +60,11 @@
     private SignInRequest _model = new();
     private string _errorMessage = "";
     private bool _isLoading;
+
+    protected override void OnInitialized()
+    {
+        Lang.OnChange += HandleLanguageChanged;
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -93,11 +100,29 @@
         }
         catch
         {
-            _errorMessage = "Your email or password is incorrect. Please try again.";
+            _errorMessage = T("EMAIL_PASSWORD_NOT_VALID");
         }
         finally
         {
             _isLoading = false;
         }
+    }
+
+    private string T(string key) => Lang[key];
+
+    private string Tr(string key, string fallback)
+    {
+        var value = Lang[key];
+        return string.Equals(value, key, StringComparison.OrdinalIgnoreCase) ? fallback : value;
+    }
+
+    private void HandleLanguageChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Lang.OnChange -= HandleLanguageChanged;
     }
 }

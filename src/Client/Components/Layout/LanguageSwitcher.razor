@@ -34,13 +34,13 @@
                 <div class="px-4 py-3 text-sm text-medium-emphasis">
                     <div class="flex items-center gap-2">
                         <div class="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
-                        <span>Loading languages...</span>
+                        <span>@Tr("LOADING_LANGUAGES", "Loading languages...")</span>
                     </div>
                 </div>
             }
             else if (!Lang.AvailableLanguages.Any())
             {
-                <div class="px-4 py-3 text-sm text-medium-emphasis">No languages available.</div>
+                <div class="px-4 py-3 text-sm text-medium-emphasis">@Tr("NO_LANGUAGES_AVAILABLE", "No languages available.")</div>
             }
             else
             {
@@ -58,7 +58,7 @@
 
                             @if (lang.IsDefault)
                             {
-                                <span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-low-emphasis">Default</span>
+                                <span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-low-emphasis">@Tr("DEFAULT", "Default")</span>
                             }
 
                             @if (isActive)
@@ -111,6 +111,12 @@
     {
         Close();
         await Lang.SetLanguageAsync(code, true);
+    }
+
+    private string Tr(string key, string fallback)
+    {
+        var value = Lang[key];
+        return string.Equals(value, key, StringComparison.OrdinalIgnoreCase) ? fallback : value;
     }
 
     public void Dispose()

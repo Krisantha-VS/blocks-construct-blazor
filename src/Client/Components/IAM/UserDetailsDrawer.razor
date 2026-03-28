@@ -1,8 +1,11 @@
+@inject LanguageState Lang
+@implements IDisposable
+
 <div class="fixed inset-0 z-40 bg-black/30" @onclick="OnClose"></div>
 
 <div class="animate-slide-in-right fixed right-0 top-0 z-50 flex h-full w-full max-w-sm flex-col bg-card shadow-2xl">
     <div class="flex items-center justify-between border-b px-4 py-3">
-        <h3 class="font-semibold text-high-emphasis">User Details</h3>
+        <h3 class="font-semibold text-high-emphasis">@T("VIEW_DETAILS")</h3>
         <button @onclick="OnClose" class="rounded p-1 text-medium-emphasis hover:bg-muted">
             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
@@ -22,28 +25,28 @@
         <div class="border-t"></div>
 
         <div class="grid grid-cols-2 gap-4 text-sm">
-            <DrawerField Label="Phone" Value="@(User.PhoneNumber ?? "-")" />
-            <DrawerField Label="Roles" Value="@string.Join(", ", User.Roles)" />
-            <DrawerField Label="Status" Value="@(User.Active ? "Active" : "Inactive")" />
-            <DrawerField Label="MFA" Value="@(User.MfaEnabled ? "Enabled" : "Disabled")" />
-            <DrawerField Label="Verified" Value="@(User.IsVerified ? "Yes" : "No")" />
-            <DrawerField Label="Joined" Value="@User.CreatedDate.ToString("dd MMM yyyy")" />
-            <DrawerField Label="Last Login" Value="@(User.LastLoggedInTime?.Year > 1 ? User.LastLoggedInTime.Value.ToString("dd MMM yyyy") : "-")" />
+            <DrawerField Label="@T("PHONE_NO")" Value="@(User.PhoneNumber ?? "-")" />
+            <DrawerField Label="@T("ROLES")" Value="@string.Join(", ", User.Roles)" />
+            <DrawerField Label="@T("STATUS")" Value="@(User.Active ? T("ACTIVE") : T("INACTIVE"))" />
+            <DrawerField Label="@T("MFA")" Value="@(User.MfaEnabled ? T("ENABLED") : T("DISABLED"))" />
+            <DrawerField Label="@T("VERIFY")" Value="@(User.IsVerified ? T("YES") : T("LABEL_NO"))" />
+            <DrawerField Label="@T("JOINED_ON")" Value="@User.CreatedDate.ToString("dd MMM yyyy")" />
+            <DrawerField Label="@T("LAST_LOGIN")" Value="@(User.LastLoggedInTime?.Year > 1 ? User.LastLoggedInTime.Value.ToString("dd MMM yyyy") : "-")" />
         </div>
 
         <div class="border-t"></div>
 
         <div class="flex flex-col gap-2">
-            <p class="text-xs font-semibold uppercase tracking-wider text-low-emphasis">Quick Actions</p>
+            <p class="text-xs font-semibold uppercase tracking-wider text-low-emphasis">@T("ACTION")</p>
 
             <button @onclick="() => OnResetPassword.InvokeAsync(User)" class="w-full rounded-md border border-border px-3 py-2.5 text-left text-sm hover:bg-muted">
-                Send Password Reset Email
+                @T("SEND_RESET_LINK")
             </button>
 
             @if (!User.IsVerified)
             {
                 <button @onclick="() => OnResendActivation.InvokeAsync(User)" class="w-full rounded-md border border-border px-3 py-2.5 text-left text-sm hover:bg-muted">
-                    Resend Activation Email
+                    @T("RESEND_ACTIVATION_LINK")
                 </button>
             }
         </div>
@@ -55,4 +58,27 @@
     [Parameter] public EventCallback OnClose { get; set; }
     [Parameter] public EventCallback<IamUser> OnResetPassword { get; set; }
     [Parameter] public EventCallback<IamUser> OnResendActivation { get; set; }
+
+    protected override void OnInitialized()
+    {
+        Lang.OnChange += HandleLanguageChanged;
+    }
+
+    private string T(string key) => Lang[key];
+
+    private string Tr(string key, string fallback)
+    {
+        var value = Lang[key];
+        return string.Equals(value, key, StringComparison.OrdinalIgnoreCase) ? fallback : value;
+    }
+
+    private void HandleLanguageChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Lang.OnChange -= HandleLanguageChanged;
+    }
 }

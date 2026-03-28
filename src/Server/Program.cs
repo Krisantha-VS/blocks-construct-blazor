@@ -33,6 +33,8 @@ builder.Services.AddHttpClient<IAuthService, AuthService>(ConfigureBlocksApiClie
     .AddHttpMessageHandler<AuthTokenHandler>();
 builder.Services.AddHttpClient<IUserService, UserService>(ConfigureBlocksApiClient)
     .AddHttpMessageHandler<AuthTokenHandler>();
+builder.Services.AddHttpClient<IDeviceService, DeviceService>(ConfigureBlocksApiClient)
+    .AddHttpMessageHandler<AuthTokenHandler>();
 builder.Services.AddHttpClient<IInventoryService, InventoryService>(ConfigureBlocksApiClient)
     .AddHttpMessageHandler<AuthTokenHandler>();
 builder.Services.AddHttpClient<ILanguageService, LanguageService>(ConfigureBlocksApiClient)

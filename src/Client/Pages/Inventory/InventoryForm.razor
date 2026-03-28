@@ -3,8 +3,10 @@
 @rendermode InteractiveAuto
 @inject IInventoryService InventoryService
 @inject NavigationManager Nav
+@inject LanguageState Lang
+@implements IDisposable
 
-<PageTitle>@(_isEdit ? "Edit Item" : "Add Item")</PageTitle>
+<PageTitle>@(_isEdit ? Tr("EDIT", "Edit Item") : Tr("ADD_ITEM", "Add Item"))</PageTitle>
 <RequireClientAuth />
 
 <div class="flex max-w-2xl flex-col gap-6">
@@ -12,7 +14,7 @@
         <button @onclick='() => Nav.NavigateTo("/inventory")' class="rounded p-1 text-medium-emphasis hover:bg-muted hover:text-primary">
             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
         </button>
-        <h1 class="text-2xl font-bold tracking-tight text-high-emphasis">@(_isEdit ? "Edit Item" : "Add New Item")</h1>
+        <h1 class="text-2xl font-bold tracking-tight text-high-emphasis">@(_isEdit ? Tr("EDIT", "Edit Item") : Tr("ADD_ITEM", "Add New Item"))</h1>
     </div>
 
     @if (!string.IsNullOrEmpty(_error))
@@ -25,49 +27,49 @@
             <DataAnnotationsValidator />
 
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <FormField Label="Item Name" Required="true">
+                <FormField Label="@Tr("ITEM_NAME", "Item Name")" Required="true">
                     <InputText @bind-Value="_model.ItemName" class="form-input" />
                     <ValidationMessage For="@(() => _model.ItemName)" class="text-xs text-destructive" />
                 </FormField>
 
-                <FormField Label="Category" Required="true">
+                <FormField Label="@Tr("CATEGORY", "Category")" Required="true">
                     <InputText @bind-Value="_model.Category" class="form-input" />
                     <ValidationMessage For="@(() => _model.Category)" class="text-xs text-destructive" />
                 </FormField>
 
-                <FormField Label="Supplier">
+                <FormField Label="@Tr("SUPPLIER", "Supplier")">
                     <InputText @bind-Value="_model.Supplier" class="form-input" />
                 </FormField>
 
-                <FormField Label="Location">
+                <FormField Label="@Tr("ITEM_LOCATION", "Location")">
                     <InputText @bind-Value="_model.ItemLoc" class="form-input" />
                 </FormField>
 
-                <FormField Label="Price">
+                <FormField Label="@Tr("PRICE", "Price")">
                     <InputNumber @bind-Value="_model.Price" class="form-input" />
                 </FormField>
 
-                <FormField Label="Stock">
+                <FormField Label="@Tr("STOCK", "Stock")">
                     <InputNumber @bind-Value="_model.Stock" class="form-input" />
                 </FormField>
 
-                <FormField Label="Status">
+                <FormField Label="@Tr("STATUS", "Status")">
                     <InputSelect @bind-Value="_model.Status" class="form-input">
-                        <option value="Active">Active</option>
-                        <option value="Inactive">Inactive</option>
+                        <option value="Active">@Tr("ACTIVE", "Active")</option>
+                        <option value="Inactive">@Tr("INACTIVE", "Inactive")</option>
                     </InputSelect>
                 </FormField>
             </div>
 
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <CheckboxField @bind-Value="_model.EligibleWarranty" Label="Eligible Warranty" />
-                <CheckboxField @bind-Value="_model.EligibleReplacement" Label="Eligible Replacement" />
-                <CheckboxField @bind-Value="_model.Discount" Label="Discount" />
+                <CheckboxField @bind-Value="_model.EligibleWarranty" Label="@Tr("ELIGIBLE_FOR_WARRANTY", "Eligible Warranty")" />
+                <CheckboxField @bind-Value="_model.EligibleReplacement" Label="@Tr("ELIGIBLE_FOR_REPLACEMENT", "Eligible Replacement")" />
+                <CheckboxField @bind-Value="_model.Discount" Label="@Tr("DISCOUNT", "Discount")" />
             </div>
 
             <div class="flex justify-end gap-3">
-                <button type="button" @onclick='() => Nav.NavigateTo("/inventory")' class="rounded border border-border px-4 py-2 text-sm hover:bg-muted">Cancel</button>
-                <button type="submit" class="rounded bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90" disabled="@_saving">@(_saving ? "Saving..." : "Save")</button>
+                <button type="button" @onclick='() => Nav.NavigateTo("/inventory")' class="rounded border border-border px-4 py-2 text-sm hover:bg-muted">@Tr("CANCEL", "Cancel")</button>
+                <button type="submit" class="rounded bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary/90" disabled="@_saving">@(_saving ? Tr("UPDATING", "Saving...") : Tr("SAVE", "Save"))</button>
             </div>
         </EditForm>
     </div>
@@ -80,6 +82,11 @@
     private InventoryFormModel _model = new();
     private string _error = "";
     private bool _saving;
+
+    protected override void OnInitialized()
+    {
+        Lang.OnChange += HandleLanguageChanged;
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -116,7 +123,7 @@
         }
         catch (Exception ex)
         {
-            _error = $"Failed to load item: {ex.Message}";
+            _error = $"{Tr("ERROR_LOADING_DATA", "Failed to load item:")} {ex.Message}";
             await InvokeAsync(StateHasChanged);
         }
     }
@@ -140,11 +147,27 @@
         }
         catch
         {
-            _error = "Failed to save. Please check your inputs and try again.";
+            _error = $"{Tr("UPDATE_FAILED", "Failed to save.")} {Tr("PLEASE_TRY_AGAIN", "Please check your inputs and try again.")}";
         }
         finally
         {
             _saving = false;
         }
+    }
+
+    private string Tr(string key, string fallback)
+    {
+        var value = Lang[key];
+        return string.Equals(value, key, StringComparison.OrdinalIgnoreCase) ? fallback : value;
+    }
+
+    private void HandleLanguageChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Lang.OnChange -= HandleLanguageChanged;
     }
 }

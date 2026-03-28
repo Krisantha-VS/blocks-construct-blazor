@@ -2,6 +2,8 @@
 @inject AppAuthStateProvider AuthState
 @inject IUserService UserService
 @inject NavigationManager Nav
+@inject LanguageState Lang
+@implements IDisposable
 
 <div class="relative">
     <button @onclick="Toggle"
@@ -59,7 +61,7 @@
                         role="menuitem"
                         type="button">
                     @((MarkupString)SvgIcons.User)
-                    <span>My Profile</span>
+                    <span>@Tr("MY_PROFILE", "My Profile")</span>
                 </button>
 
                 <div class="my-1 border-t"></div>
@@ -72,7 +74,7 @@
                         <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
                         <line x1="12" y1="2" x2="12" y2="12"/>
                     </svg>
-                    <span>Log Out</span>
+                    <span>@Tr("LOG_OUT", "Log Out")</span>
                 </button>
             </div>
         </div>
@@ -83,6 +85,11 @@
     private UserProfile? _profile;
     private bool _isOpen;
     private bool _isProfileLoading = true;
+
+    protected override void OnInitialized()
+    {
+        Lang.OnChange += HandleLanguageChanged;
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -151,5 +158,21 @@
 
         AuthState.NotifyAuthStateChanged();
         Nav.NavigateTo("/login", replace: true);
+    }
+
+    private string Tr(string key, string fallback)
+    {
+        var value = Lang[key];
+        return string.Equals(value, key, StringComparison.OrdinalIgnoreCase) ? fallback : value;
+    }
+
+    private void HandleLanguageChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Lang.OnChange -= HandleLanguageChanged;
     }
 }

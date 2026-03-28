@@ -1,27 +1,53 @@
 @page "/email-sent"
 @rendermode InteractiveAuto
 @layout AuthLayout
+@inject LanguageState Lang
+@implements IDisposable
 
-<PageTitle>Email Sent</PageTitle>
+<PageTitle>@T("EMAIL_SENT")</PageTitle>
 
 <div class="flex flex-col gap-6">
     <div class="flex justify-center">
-        <img src="/images/email_sent.svg" alt="Email Sent" class="h-32 w-32" />
+        <img src="/images/email_sent.svg" alt="@T("EMAIL_SENT")" class="h-32 w-32" />
     </div>
 
     <div>
-        <h1 class="mb-4 text-2xl font-bold text-high-emphasis">Email Sent!</h1>
+        <h1 class="mb-4 text-2xl font-bold text-high-emphasis">@T("EMAIL_SENT")</h1>
         <p class="text-base font-normal leading-6 text-medium-emphasis">
-            A password reset link has been sent to your registered email address.
-            Please check your inbox and follow the instructions.
+            @T("EMAIL_SENT_REGISTERED_EMAIL")
         </p>
     </div>
 
     <a href="/login" class="block w-full rounded-md bg-primary py-2.5 text-center text-sm font-extrabold text-white hover:bg-primary/90 transition-colors">
-        Back to Login
+        @T("GO_TO_LOGIN")
     </a>
 
     <a href="/forgot-password" class="block w-full rounded-md py-2.5 text-center text-sm font-extrabold text-primary hover:underline">
-        Change Email Address
+        @T("CHANGE_EMAIL_ADDRESS")
     </a>
 </div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Lang.OnChange += HandleLanguageChanged;
+    }
+
+    private string T(string key) => Lang[key];
+
+    private string Tr(string key, string fallback)
+    {
+        var value = Lang[key];
+        return string.Equals(value, key, StringComparison.OrdinalIgnoreCase) ? fallback : value;
+    }
+
+    private void HandleLanguageChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Lang.OnChange -= HandleLanguageChanged;
+    }
+}

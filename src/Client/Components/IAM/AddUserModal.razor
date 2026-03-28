@@ -1,7 +1,10 @@
+@inject LanguageState Lang
+@implements IDisposable
+
 <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
     <div class="w-full max-w-md rounded-xl bg-card p-6 shadow-xl">
         <div class="mb-4 flex items-center justify-between">
-            <h2 class="text-lg font-bold text-high-emphasis">Add User</h2>
+            <h2 class="text-lg font-bold text-high-emphasis">@T("ADD_USER")</h2>
             <button @onclick="OnClose" class="text-medium-emphasis hover:text-high-emphasis">
                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
@@ -16,34 +19,34 @@
             <DataAnnotationsValidator />
 
             <div class="grid grid-cols-2 gap-4">
-                <FormField Label="First Name" Required="true">
+                <FormField Label="@T("FIRST_NAME")" Required="true">
                     <InputText @bind-Value="_model.FirstName" class="form-input" />
                     <ValidationMessage For="@(() => _model.FirstName)" class="text-xs text-destructive" />
                 </FormField>
-                <FormField Label="Last Name">
+                <FormField Label="@T("LAST_NAME")">
                     <InputText @bind-Value="_model.LastName" class="form-input" />
                 </FormField>
             </div>
 
-            <FormField Label="Email" Required="true">
+            <FormField Label="@T("EMAIL")" Required="true">
                 <InputText @bind-Value="_model.Email" class="form-input" />
                 <ValidationMessage For="@(() => _model.Email)" class="text-xs text-destructive" />
             </FormField>
 
-            <FormField Label="Phone Number">
+            <FormField Label="@T("PHONE_NO")">
                 <InputText @bind-Value="_model.PhoneNumber" class="form-input" />
             </FormField>
 
-            <FormField Label="Role">
+            <FormField Label="@T("ROLES")">
                 <InputSelect @bind-Value="_model.Role" class="form-input">
-                    <option value="user">User</option>
-                    <option value="admin">Admin</option>
+                    <option value="user">@T("USERS")</option>
+                    <option value="admin">@T("ADMIN")</option>
                 </InputSelect>
             </FormField>
 
             <div class="mt-2 flex justify-end gap-3">
-                <button type="button" @onclick="OnClose" class="rounded-md border border-border px-4 py-2 text-sm hover:bg-muted">Cancel</button>
-                <button type="submit" class="rounded-md bg-primary px-4 py-2 text-sm font-extrabold text-white hover:bg-primary/90 disabled:opacity-50" disabled="@_saving">@(_saving ? "Adding..." : "Add User")</button>
+                <button type="button" @onclick="OnClose" class="rounded-md border border-border px-4 py-2 text-sm hover:bg-muted">@T("CANCEL")</button>
+                <button type="submit" class="rounded-md bg-primary px-4 py-2 text-sm font-extrabold text-white hover:bg-primary/90 disabled:opacity-50" disabled="@_saving">@(_saving ? T("LOADING") : T("ADD_USER"))</button>
             </div>
         </EditForm>
     </div>
@@ -58,6 +61,11 @@
     private string _error = "";
     private bool _saving;
 
+    protected override void OnInitialized()
+    {
+        Lang.OnChange += HandleLanguageChanged;
+    }
+
     private async Task HandleSubmit()
     {
         _saving = true;
@@ -70,11 +78,29 @@
         }
         catch
         {
-            _error = "Failed to invite user. The email may already be registered.";
+            _error = $"{Tr("CREATION_FAILED", "Failed to invite user.")} {Tr("PLEASE_TRY_AGAIN", "Please try again.")}";
         }
         finally
         {
             _saving = false;
         }
+    }
+
+    private string T(string key) => Lang[key];
+
+    private string Tr(string key, string fallback)
+    {
+        var value = Lang[key];
+        return string.Equals(value, key, StringComparison.OrdinalIgnoreCase) ? fallback : value;
+    }
+
+    private void HandleLanguageChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Lang.OnChange -= HandleLanguageChanged;
     }
 }

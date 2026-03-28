@@ -1,0 +1,243 @@
+@inject IDeviceService DeviceService
+@inject IJSRuntime JS
+@inject LanguageState Lang
+@implements IAsyncDisposable
+
+<div class="flex w-full">
+    <div class="w-full rounded-lg bg-card shadow-sm">
+        <div class="flex items-center justify-between px-6 pt-6 pb-2">
+            <h2 class="text-xl font-semibold text-high-emphasis">@T("DEVICES")</h2>
+
+            <button disabled
+                    type="button"
+                    class="flex cursor-not-allowed items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-bold text-gray-400 opacity-50">
+                <svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                    <path d="M10 11v6M14 11v6"/>
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                </svg>
+                <span class="hidden sm:inline">@Tr("REMOVE", "Remove") @T("ALL") @T("DEVICES")</span>
+            </button>
+        </div>
+
+        <div class="overflow-x-auto px-6 pb-6">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b hover:bg-transparent">
+                        <th class="w-[200px] py-3 text-left font-bold text-medium-emphasis">@T("DEVICE")</th>
+                        <th class="w-[200px] py-3 text-left font-bold text-medium-emphasis">@Tr("BROWSER", "Browser")</th>
+                        <th class="w-[200px] py-3 text-left font-bold text-medium-emphasis">@Tr("LAST_UPDATED", "Last Accessed")</th>
+                        <th class="w-[60px] py-3 text-left font-bold text-medium-emphasis"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var session in _sessions)
+                    {
+                        <tr class="cursor-pointer border-b font-normal text-medium-emphasis transition-colors hover:bg-muted/30">
+                            <td class="py-3">
+                                <div class="flex w-[150px] items-center gap-2 md:w-[200px]">
+                                    @if (IsMobile(session.DeviceInformation?.Device))
+                                    {
+                                        <svg class="h-5 w-5 shrink-0 text-primary" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+                                            <line x1="12" y1="18" x2="12.01" y2="18"/>
+                                        </svg>
+                                    }
+                                    else
+                                    {
+                                        <svg class="h-5 w-5 shrink-0 text-primary" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                                            <line x1="8" y1="21" x2="16" y2="21"/>
+                                            <line x1="12" y1="17" x2="12" y2="21"/>
+                                        </svg>
+                                    }
+
+                                    <span class="truncate">@DeviceDisplayName(session.DeviceInformation)</span>
+                                </div>
+                            </td>
+                            <td class="py-3">
+                                <span class="block w-[150px] truncate md:w-[200px]">
+                                    @(string.IsNullOrWhiteSpace(session.DeviceInformation?.Browser)
+                                        ? "Unknown Browser"
+                                        : session.DeviceInformation.Browser)
+                                </span>
+                            </td>
+                            <td class="py-3">
+                                <span class="block w-[150px] md:w-[200px]">@FormatDate(session.UpdateDate)</span>
+                            </td>
+                            <td class="py-3">
+                                <button disabled
+                                        type="button"
+                                        class="cursor-not-allowed rounded-full p-1.5 text-gray-400 opacity-50"
+                                        aria-label="@Tr("REMOVE", "Remove")">
+                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <polyline points="3 6 5 6 21 6"/>
+                                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                                        <path d="M10 11v6M14 11v6"/>
+                                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                                    </svg>
+                                </button>
+                            </td>
+                        </tr>
+                    }
+
+                    @if (!_isLoading && _sessions.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="4" class="py-12 text-center text-medium-emphasis">@T("NO_DATA_FOUND")</td>
+                        </tr>
+                    }
+
+                    <tr>
+                        <td colspan="4">
+                            <div @ref="_sentinelRef" class="flex h-8 items-center justify-center py-2">
+                                @if (_isLoading)
+                                {
+                                    <svg class="h-5 w-5 animate-spin text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                                    </svg>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string UserId { get; set; } = string.Empty;
+
+    private readonly List<DeviceSession> _sessions = [];
+    private bool _isLoading = true;
+    private bool _hasMore = true;
+    private int _page = 1;
+    private const int PageSize = 10;
+
+    private ElementReference _sentinelRef;
+    private IJSObjectReference? _observer;
+    private DotNetObjectReference<DevicesTab>? _dotNetRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || string.IsNullOrWhiteSpace(UserId))
+        {
+            return;
+        }
+
+        await LoadPageAsync();
+
+        _dotNetRef = DotNetObjectReference.Create(this);
+        _observer = await JS.InvokeAsync<IJSObjectReference>("blazorDevices.createObserver", _sentinelRef, _dotNetRef);
+    }
+
+    [JSInvokable]
+    public async Task OnSentinelVisible()
+    {
+        if (!_hasMore || _isLoading)
+        {
+            return;
+        }
+
+        _page++;
+        await LoadPageAsync();
+    }
+
+    private async Task LoadPageAsync()
+    {
+        if (!_hasMore && _page > 0)
+        {
+            return;
+        }
+
+        _isLoading = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var result = await DeviceService.GetSessionsAsync(UserId, _page, PageSize);
+            if (_page == 1)
+            {
+                _sessions.Clear();
+            }
+
+            _sessions.AddRange(result.Data);
+            _hasMore = result.Data.Count == PageSize;
+        }
+        catch
+        {
+            _hasMore = false;
+        }
+        finally
+        {
+            _isLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private string T(string key) => Lang[key];
+
+    private string Tr(string key, string fallback)
+    {
+        var value = Lang[key];
+        return string.Equals(value, key, StringComparison.OrdinalIgnoreCase) ? fallback : value;
+    }
+
+    private static bool IsMobile(string? device)
+    {
+        if (string.IsNullOrWhiteSpace(device))
+        {
+            return false;
+        }
+
+        var normalized = device.ToLowerInvariant();
+        return normalized.Contains("mobile")
+            || normalized.Contains("iphone")
+            || normalized.Contains("android")
+            || normalized.Contains("smartphone");
+    }
+
+    private string DeviceDisplayName(DeviceInformation? info)
+    {
+        if (info is null)
+        {
+            return "Unknown Device";
+        }
+
+        if (!string.IsNullOrWhiteSpace(info.Brand))
+        {
+            return info.Brand;
+        }
+
+        if (!string.IsNullOrWhiteSpace(info.Device))
+        {
+            return info.Device;
+        }
+
+        return "Unknown Device";
+    }
+
+    private static string FormatDate(DateTime date)
+    {
+        if (date == default || date.Year <= 1)
+        {
+            return "-";
+        }
+
+        return date.ToString("dd MMM yyyy, HH:mm");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_observer is not null)
+        {
+            await JS.InvokeVoidAsync("blazorDevices.destroyObserver", _observer);
+            await _observer.DisposeAsync();
+        }
+
+        _dotNetRef?.Dispose();
+    }
+}

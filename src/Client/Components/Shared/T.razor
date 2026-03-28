@@ -1,7 +1,23 @@
 @inject LanguageState Lang
+@implements IDisposable
 
 @Lang[Key]
 
 @code {
     [Parameter] public string Key { get; set; } = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        Lang.OnChange += HandleLanguageChanged;
+    }
+
+    private void HandleLanguageChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Lang.OnChange -= HandleLanguageChanged;
+    }
 }

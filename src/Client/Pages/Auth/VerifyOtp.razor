@@ -4,20 +4,22 @@
 @inject IAuthService AuthService
 @inject AppAuthStateProvider AuthState
 @inject NavigationManager Nav
+@inject LanguageState Lang
+@implements IDisposable
 
-<PageTitle>Verify Key</PageTitle>
+<PageTitle>@T("VERIFYING_KEY")</PageTitle>
 
 <div class="flex flex-col gap-10">
     <div class="flex flex-col gap-2">
-        <h1 class="text-2xl font-bold text-high-emphasis">Verifying Key</h1>
+        <h1 class="text-2xl font-bold text-high-emphasis">@T("VERIFYING_KEY")</h1>
         <p class="text-sm font-normal text-medium-emphasis">
             @if (_mfaType == "authenticator")
             {
-                <span>Enter the 6-digit code from your authenticator app.</span>
+                <span>@T("ENTER_VERIFICATION_CODE_AUTHENTICATOR_APP")</span>
             }
             else
             {
-                <span>Enter the verification key sent to <strong>@MaskEmail(UserEmail)</strong>.</span>
+                <span>@T("ENTER_VERIFICATION_KEY_SENT_EMAIL") <strong>@MaskEmail(UserEmail)</strong>.</span>
             }
         </p>
     </div>
@@ -40,17 +42,17 @@
 
     @if (_hasError)
     {
-        <p class="-mt-6 text-center text-sm text-destructive">Invalid code. Please try again.</p>
+        <p class="-mt-6 text-center text-sm text-destructive">@T("INVALID_OTP_PLEASE_TRY_AGAIN")</p>
     }
 
     <div class="flex flex-col gap-4">
         <button @onclick="HandleVerify"
                 class="w-full rounded-md bg-primary py-2.5 text-sm font-extrabold text-white disabled:opacity-50 hover:bg-primary/90 transition-colors"
                 disabled="@(_isLoading || !IsComplete)">
-            @(_isLoading ? "Verifying..." : "Verify")
+            @(_isLoading ? T("VERIFYING") : T("VERIFY"))
         </button>
 
-        <a href="/login" class="text-center text-sm text-primary hover:underline">Back to Login</a>
+        <a href="/login" class="text-center text-sm text-primary hover:underline">@T("GO_TO_LOGIN")</a>
     </div>
 </div>
 
@@ -70,6 +72,11 @@
     private ElementReference[] _inputRefs = [];
     private bool _isLoading;
     private bool _hasError;
+
+    protected override void OnInitialized()
+    {
+        Lang.OnChange += HandleLanguageChanged;
+    }
 
     protected override void OnParametersSet()
     {
@@ -147,5 +154,23 @@
         var parts = email.Split('@');
         if (parts.Length != 2 || parts[0].Length == 0) return email;
         return $"{parts[0][0]}****@{parts[1]}";
+    }
+
+    private string T(string key) => Lang[key];
+
+    private string Tr(string key, string fallback)
+    {
+        var value = Lang[key];
+        return string.Equals(value, key, StringComparison.OrdinalIgnoreCase) ? fallback : value;
+    }
+
+    private void HandleLanguageChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Lang.OnChange -= HandleLanguageChanged;
     }
 }
