@@ -9,7 +9,7 @@ public class BlocksApiAuthorizationHandler(ILocalStorageService localStorage) : 
     {
         if (request.Headers.Authorization is null)
         {
-            var accessToken = await localStorage.GetItemAsStringAsync("accessToken");
+            var accessToken = NormalizeToken(await localStorage.GetItemAsStringAsync("accessToken"));
             if (!string.IsNullOrWhiteSpace(accessToken))
             {
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
@@ -17,5 +17,15 @@ public class BlocksApiAuthorizationHandler(ILocalStorageService localStorage) : 
         }
 
         return await base.SendAsync(request, cancellationToken);
+    }
+
+    private static string? NormalizeToken(string? token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return token;
+        }
+
+        return token.Trim().Trim('"');
     }
 }

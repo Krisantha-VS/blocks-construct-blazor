@@ -24,7 +24,9 @@
                 </div>
             </Authorized>
             <NotAuthorized>
-                <RedirectToLogin />
+                <main class="min-h-screen bg-background p-4 md:p-6">
+                    @Body
+                </main>
             </NotAuthorized>
         </AuthorizeView>
     </ChildContent>
