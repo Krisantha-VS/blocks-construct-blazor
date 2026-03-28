@@ -1,111 +1,104 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using Client.Models.Language;
+using Microsoft.AspNetCore.Mvc;
+using Server.Services;
 
-namespace Client.Services;
+namespace Server.Controllers;
 
-public interface ILanguageService
-{
-    Task<List<LanguageItem>> GetAvailableLanguagesAsync();
-    Task<List<LanguageModule>> GetModulesAsync();
-    Task<Dictionary<string, string>> GetTranslationsAsync(string language, string moduleId, string? moduleName = null);
-}
-
-public class LanguageService(HttpClient http, IConfiguration config) : ILanguageService
+[ApiController]
+[Route("api/localization")]
+public class LocalizationController(IBlocksApiGateway gateway, IConfiguration config) : ControllerBase
 {
     private readonly HashSet<string> _generateAttempted = new(StringComparer.OrdinalIgnoreCase);
 
-    private string ProjectKey => config["ProjectKey"]
+    private readonly string _projectKey = config["ProjectKey"]
         ?? config["ApiSecurity:XBlocksKey"]
         ?? config["ApiClient:XBlocksKey"]
         ?? string.Empty;
 
-    public async Task<List<LanguageItem>> GetAvailableLanguagesAsync()
+    [HttpGet("languages")]
+    public async Task<ActionResult<List<LanguageItem>>> GetAvailableLanguages(CancellationToken cancellationToken)
     {
-        try
+        using var client = gateway.CreateClient();
+        var url = $"/uilm/v1/Language/Gets?projectKey={Uri.EscapeDataString(_projectKey)}";
+        using var response = await client.GetAsync(url, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+
+        var root = doc.RootElement;
+        var list = TryGetPropertyIgnoreCase(root, "data", out var dataElement) && dataElement.ValueKind == JsonValueKind.Array
+            ? dataElement
+            : root;
+
+        var result = new List<LanguageItem>();
+        if (list.ValueKind != JsonValueKind.Array)
         {
-            var url = $"/uilm/v1/Language/Gets?projectKey={Uri.EscapeDataString(ProjectKey)}";
-            using var response = await http.GetAsync(url);
-            response.EnsureSuccessStatusCode();
-
-            using var stream = await response.Content.ReadAsStreamAsync();
-            using var doc = await JsonDocument.ParseAsync(stream);
-
-            var root = doc.RootElement;
-            var list = TryGetPropertyIgnoreCase(root, "data", out var dataElement) && dataElement.ValueKind == JsonValueKind.Array
-                ? dataElement
-                : root;
-
-            var result = new List<LanguageItem>();
-            if (list.ValueKind != JsonValueKind.Array)
-            {
-                return result;
-            }
-
-            foreach (var item in list.EnumerateArray())
-            {
-                result.Add(new LanguageItem
-                {
-                    ItemId = ReadString(item, "id", "itemId"),
-                    LanguageName = ReadString(item, "name", "languageName"),
-                    LanguageCode = ReadString(item, "code", "languageCode"),
-                    IsDefault = ReadBool(item, "isDefault"),
-                    ProjectKey = ReadString(item, "projectKey")
-                });
-            }
-
             return result;
         }
-        catch
+
+        foreach (var item in list.EnumerateArray())
         {
-            return [];
+            result.Add(new LanguageItem
+            {
+                ItemId = ReadString(item, "id", "itemId"),
+                LanguageName = ReadString(item, "name", "languageName"),
+                LanguageCode = ReadString(item, "code", "languageCode"),
+                IsDefault = ReadBool(item, "isDefault"),
+                ProjectKey = ReadString(item, "projectKey")
+            });
         }
+
+        return result;
     }
 
-    public async Task<List<LanguageModule>> GetModulesAsync()
+    [HttpGet("modules")]
+    public async Task<ActionResult<List<LanguageModule>>> GetModules(CancellationToken cancellationToken)
     {
-        try
+        using var client = gateway.CreateClient();
+        var url = $"/uilm/v1/Module/Gets?projectKey={Uri.EscapeDataString(_projectKey)}";
+        using var response = await client.GetAsync(url, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+
+        var root = doc.RootElement;
+        var list = TryGetPropertyIgnoreCase(root, "data", out var dataElement) && dataElement.ValueKind == JsonValueKind.Array
+            ? dataElement
+            : root;
+
+        var result = new List<LanguageModule>();
+        if (list.ValueKind != JsonValueKind.Array)
         {
-            var url = $"/uilm/v1/Module/Gets?projectKey={Uri.EscapeDataString(ProjectKey)}";
-            using var response = await http.GetAsync(url);
-            response.EnsureSuccessStatusCode();
-
-            using var stream = await response.Content.ReadAsStreamAsync();
-            using var doc = await JsonDocument.ParseAsync(stream);
-            var root = doc.RootElement;
-            var list = TryGetPropertyIgnoreCase(root, "data", out var dataElement) && dataElement.ValueKind == JsonValueKind.Array
-                ? dataElement
-                : root;
-
-            var result = new List<LanguageModule>();
-            if (list.ValueKind != JsonValueKind.Array)
-            {
-                return result;
-            }
-
-            foreach (var item in list.EnumerateArray())
-            {
-                result.Add(new LanguageModule
-                {
-                    ItemId = ReadString(item, "id", "itemId"),
-                    Name = ReadString(item, "name", "moduleName")
-                });
-            }
-
             return result;
         }
-        catch
+
+        foreach (var item in list.EnumerateArray())
         {
-            return [];
+            result.Add(new LanguageModule
+            {
+                ItemId = ReadString(item, "id", "itemId"),
+                Name = ReadString(item, "name", "moduleName")
+            });
         }
+
+        return result;
     }
 
-    public async Task<Dictionary<string, string>> GetTranslationsAsync(string language, string moduleId, string? moduleName = null)
+    [HttpGet("translations")]
+    public async Task<ActionResult<Dictionary<string, string>>> GetTranslations(
+        [FromQuery] string language,
+        [FromQuery] string moduleId,
+        [FromQuery] string? moduleName,
+        CancellationToken cancellationToken)
     {
         var candidates = BuildLanguageCandidates(language);
         foreach (var candidate in candidates)
         {
-            var dict = await TryGetTranslationsAsync(candidate, moduleId, moduleName);
+            var dict = await TryGetTranslationsAsync(candidate, moduleId, moduleName, cancellationToken);
             if (dict is not null)
             {
                 return dict;
@@ -115,19 +108,22 @@ public class LanguageService(HttpClient http, IConfiguration config) : ILanguage
         return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     }
 
-    private async Task<Dictionary<string, string>?> TryGetTranslationsAsync(string language, string moduleId, string? moduleName)
+    private async Task<Dictionary<string, string>?> TryGetTranslationsAsync(
+        string language,
+        string moduleId,
+        string? moduleName,
+        CancellationToken cancellationToken)
     {
         var urls = BuildUilmUrls(language, moduleId, moduleName).ToList();
-        var dict = await TryFetchTranslationsAsync(urls);
+        var dict = await TryFetchTranslationsAsync(urls, cancellationToken);
         if (dict is not null)
         {
             return dict;
         }
 
-        // Some tenants require generating module-language files before they can be fetched.
-        if (await TryGenerateUilmFileAsync(language, moduleId))
+        if (await TryGenerateUilmFileAsync(language, moduleId, cancellationToken))
         {
-            dict = await TryFetchTranslationsAsync(urls);
+            dict = await TryFetchTranslationsAsync(urls, cancellationToken);
             if (dict is not null)
             {
                 return dict;
@@ -137,20 +133,21 @@ public class LanguageService(HttpClient http, IConfiguration config) : ILanguage
         return null;
     }
 
-    private async Task<Dictionary<string, string>?> TryFetchTranslationsAsync(IReadOnlyList<string> urls)
+    private async Task<Dictionary<string, string>?> TryFetchTranslationsAsync(IReadOnlyList<string> urls, CancellationToken cancellationToken)
     {
+        using var client = gateway.CreateClient();
+
         foreach (var url in urls)
         {
             try
             {
-                using var response = await http.GetAsync(url);
+                using var response = await client.GetAsync(url, cancellationToken);
                 if (!response.IsSuccessStatusCode)
                 {
                     continue;
                 }
 
-                var json = await response.Content.ReadAsStringAsync();
-
+                var json = await response.Content.ReadAsStringAsync(cancellationToken);
                 var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(json,
                     new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
@@ -160,14 +157,14 @@ public class LanguageService(HttpClient http, IConfiguration config) : ILanguage
             }
             catch
             {
-                // Try the next endpoint variant.
+                // Try next endpoint variant.
             }
         }
 
         return null;
     }
 
-    private async Task<bool> TryGenerateUilmFileAsync(string language, string moduleId)
+    private async Task<bool> TryGenerateUilmFileAsync(string language, string moduleId, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(moduleId))
         {
@@ -185,19 +182,20 @@ public class LanguageService(HttpClient http, IConfiguration config) : ILanguage
         {
             var payload = new
             {
-                projectKey = ProjectKey,
+                projectKey = _projectKey,
                 moduleId,
                 languageCode = shortLanguageCode
             };
 
-            using var response = await http.PostAsJsonAsync("/uilm/v1/Key/GenerateUilmFile", payload);
+            using var client = gateway.CreateClient();
+            using var response = await client.PostAsJsonAsync("/uilm/v1/Key/GenerateUilmFile", payload, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
                 return false;
             }
 
-            using var stream = await response.Content.ReadAsStreamAsync();
-            using var doc = await JsonDocument.ParseAsync(stream);
+            using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
             if (TryGetPropertyIgnoreCase(doc.RootElement, "success", out var successElement)
                 && successElement.ValueKind == JsonValueKind.False)
             {
@@ -238,28 +236,21 @@ public class LanguageService(HttpClient http, IConfiguration config) : ILanguage
     {
         var encodedLanguage = Uri.EscapeDataString(language);
         var encodedModuleId = Uri.EscapeDataString(moduleId);
-        var encodedProjectKey = Uri.EscapeDataString(ProjectKey);
+        var encodedProjectKey = Uri.EscapeDataString(_projectKey);
         var encodedModuleName = Uri.EscapeDataString(moduleName ?? string.Empty);
 
-        // Primary tenant-confirmed variant.
         if (!string.IsNullOrWhiteSpace(moduleName))
         {
             yield return $"/uilm/v1/Key/GetUilmFile?Language={encodedLanguage}&ModuleName={encodedModuleName}&ProjectKey={encodedProjectKey}";
             yield return $"/uilm/v1/Key/GetUilmFile?language={encodedLanguage}&moduleName={encodedModuleName}&projectKey={encodedProjectKey}";
         }
 
-        // Contract variant from actions/get-uilm-file.md
         yield return $"/uilm/v1/Key/GetUilmFile?language={encodedLanguage}&moduleId={encodedModuleId}&projectKey={encodedProjectKey}";
         yield return $"/uilm/v1/Key/GetUilmFile?Language={encodedLanguage}&moduleId={encodedModuleId}&ProjectKey={encodedProjectKey}";
-
-        // Some environments accept languageCode instead of language.
         yield return $"/uilm/v1/Key/GetUilmFile?languageCode={encodedLanguage}&moduleId={encodedModuleId}&projectKey={encodedProjectKey}";
         yield return $"/uilm/v1/Key/GetUilmFile?LanguageCode={encodedLanguage}&moduleId={encodedModuleId}&ProjectKey={encodedProjectKey}";
-
-        // Legacy/blazor skill variant.
         yield return $"/uilm/v1/UilmFile/Get?projectKey={encodedProjectKey}&languageCode={encodedLanguage}&moduleId={encodedModuleId}";
 
-        // Legacy module-name shape used in some deployments.
         if (!string.IsNullOrWhiteSpace(moduleName))
         {
             yield return $"/uilm/v1/UilmFile/Get?ProjectKey={encodedProjectKey}&LanguageCode={encodedLanguage}&ModuleName={encodedModuleName}";
@@ -281,8 +272,8 @@ public class LanguageService(HttpClient http, IConfiguration config) : ILanguage
 
     private static bool ReadBool(JsonElement source, string key)
     {
-        if (TryGetPropertyIgnoreCase(source, key, out var element) &&
-            (element.ValueKind == JsonValueKind.True || element.ValueKind == JsonValueKind.False))
+        if (TryGetPropertyIgnoreCase(source, key, out var element)
+            && (element.ValueKind == JsonValueKind.True || element.ValueKind == JsonValueKind.False))
         {
             return element.GetBoolean();
         }

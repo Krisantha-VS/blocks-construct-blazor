@@ -15,8 +15,7 @@ namespace Client.Services;
 /// </summary>
 public sealed class AuthTokenHandler(
     ILocalStorageService localStorage,
-    NavigationManager nav,
-    IConfiguration config) : DelegatingHandler
+    NavigationManager nav) : DelegatingHandler
 {
     private static readonly SemaphoreSlim RefreshLock = new(1, 1);
     private static readonly HttpRequestOptionsKey<bool> IsRetryRequestOption = new("AuthTokenHandler.IsRetry");
@@ -73,15 +72,6 @@ public sealed class AuthTokenHandler(
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         }
 
-        var projectKey = config["ProjectKey"]
-            ?? config["ApiSecurity:XBlocksKey"]
-            ?? config["ApiClient:XBlocksKey"]
-            ?? string.Empty;
-
-        if (!string.IsNullOrWhiteSpace(projectKey) && !request.Headers.Contains("x-blocks-key"))
-        {
-            request.Headers.TryAddWithoutValidation("x-blocks-key", projectKey);
-        }
     }
 
     private async Task<bool> TryRefreshTokenAsync(CancellationToken cancellationToken)
@@ -94,24 +84,10 @@ public sealed class AuthTokenHandler(
                 return false;
             }
 
-            var apiBase = config["ApiBaseUrl"]
-                ?? config["ApiClient:BaseUrl"]
-                ?? string.Empty;
-            var projectKey = config["ProjectKey"]
-                ?? config["ApiSecurity:XBlocksKey"]
-                ?? config["ApiClient:XBlocksKey"]
-                ?? string.Empty;
-
-            if (string.IsNullOrWhiteSpace(apiBase))
+            using var refreshClient = new HttpClient
             {
-                return false;
-            }
-
-            using var refreshClient = new HttpClient();
-            if (!string.IsNullOrWhiteSpace(projectKey))
-            {
-                refreshClient.DefaultRequestHeaders.TryAddWithoutValidation("x-blocks-key", projectKey);
-            }
+                BaseAddress = new Uri(nav.BaseUri)
+            };
 
             var body = new FormUrlEncodedContent(new Dictionary<string, string>
             {
@@ -119,10 +95,7 @@ public sealed class AuthTokenHandler(
                 ["refresh_token"] = refreshToken
             });
 
-            var refreshResponse = await refreshClient.PostAsync(
-                $"{apiBase.TrimEnd('/')}/idp/v1/Authentication/Token",
-                body,
-                cancellationToken);
+            var refreshResponse = await refreshClient.PostAsync("/api/auth/token", body, cancellationToken);
 
             if (refreshResponse.StatusCode == HttpStatusCode.BadRequest || !refreshResponse.IsSuccessStatusCode)
             {
@@ -162,7 +135,9 @@ public sealed class AuthTokenHandler(
         request.Options.TryGetValue(IsRetryRequestOption, out var isRetry) && isRetry;
 
     private static bool IsTokenEndpoint(Uri? uri) =>
-        uri is not null && uri.AbsolutePath.Contains("/idp/v1/Authentication/Token", StringComparison.OrdinalIgnoreCase);
+        uri is not null
+        && (uri.AbsolutePath.Contains("/idp/v1/Authentication/Token", StringComparison.OrdinalIgnoreCase)
+            || uri.AbsolutePath.Contains("/api/auth/token", StringComparison.OrdinalIgnoreCase));
 
     private async Task<string?> GetAccessTokenAsync()
     {

@@ -1,35 +1,18 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Client.Models.Profile;
+using Microsoft.AspNetCore.Components;
 
 namespace Client.Services;
 
-public interface IDeviceService
+public class BffDeviceService(HttpClient http, NavigationManager nav) : IDeviceService
 {
-    Task<DeviceSessionResponse> GetSessionsAsync(string userId, int page, int pageSize);
-}
-
-public class DeviceService(HttpClient http, IConfiguration config) : IDeviceService
-{
-    private string ProjectKey => config["ProjectKey"]
-        ?? config["ApiSecurity:XBlocksKey"]
-        ?? config["ApiClient:XBlocksKey"]
-        ?? string.Empty;
+    private readonly HttpClient _http = ConfigureClient(http, nav);
 
     public async Task<DeviceSessionResponse> GetSessionsAsync(string userId, int page, int pageSize)
     {
-        var query = new Dictionary<string, string>
-        {
-            ["page"] = page.ToString(),
-            ["pageSize"] = pageSize.ToString(),
-            ["projectkey"] = ProjectKey,
-            ["filter.userId"] = userId
-        };
-
-        var queryString = string.Join("&", query.Select(kv =>
-            $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value)}"));
-
-        var raw = await http.GetStringAsync($"/idp/v1/Iam/GetSessions?{queryString}");
+        var url = $"/api/iam/sessions?userId={Uri.EscapeDataString(userId)}&page={page}&pageSize={pageSize}";
+        var raw = await _http.GetStringAsync(url);
         return ParseMongoResponse(raw);
     }
 
@@ -53,7 +36,9 @@ public class DeviceService(HttpClient http, IConfiguration config) : IDeviceServ
                 {
                     var session = ParseSession(item);
                     if (session is not null)
+                    {
                         sessions.Add(session);
+                    }
                 }
             }
 
@@ -87,11 +72,15 @@ public class DeviceService(HttpClient http, IConfiguration config) : IDeviceServ
             {
                 var rawRow = item.GetString();
                 if (string.IsNullOrWhiteSpace(rawRow))
+                {
                     return null;
+                }
 
                 var cleaned = CleanMongoJson(rawRow);
                 if (string.IsNullOrWhiteSpace(cleaned))
+                {
                     return null;
+                }
 
                 rowDocument = JsonDocument.Parse(cleaned);
                 source = rowDocument.RootElement;
@@ -148,7 +137,9 @@ public class DeviceService(HttpClient http, IConfiguration config) : IDeviceServ
     private static string ReadObjectId(JsonElement source, string propertyName)
     {
         if (!TryGetPropertyIgnoreCase(source, propertyName, out var value))
+        {
             return string.Empty;
+        }
 
         if (value.ValueKind == JsonValueKind.Object
             && TryGetPropertyIgnoreCase(value, "$oid", out var oid)
@@ -158,7 +149,9 @@ public class DeviceService(HttpClient http, IConfiguration config) : IDeviceServ
         }
 
         if (value.ValueKind == JsonValueKind.String)
+        {
             return value.GetString() ?? string.Empty;
+        }
 
         return string.Empty;
     }
@@ -166,7 +159,9 @@ public class DeviceService(HttpClient http, IConfiguration config) : IDeviceServ
     private static string ReadString(JsonElement source, string propertyName)
     {
         if (!TryGetPropertyIgnoreCase(source, propertyName, out var value))
+        {
             return string.Empty;
+        }
 
         return value.ValueKind switch
         {
@@ -181,7 +176,9 @@ public class DeviceService(HttpClient http, IConfiguration config) : IDeviceServ
     private static bool ReadBool(JsonElement source, string propertyName)
     {
         if (!TryGetPropertyIgnoreCase(source, propertyName, out var value))
+        {
             return false;
+        }
 
         return value.ValueKind switch
         {
@@ -195,10 +192,14 @@ public class DeviceService(HttpClient http, IConfiguration config) : IDeviceServ
     private static DateTime ReadMongoDate(JsonElement source, string propertyName)
     {
         if (!TryGetPropertyIgnoreCase(source, propertyName, out var value))
+        {
             return default;
+        }
 
         if (TryParseDateElement(value, out var date))
+        {
             return date;
+        }
 
         if (value.ValueKind == JsonValueKind.Object
             && TryGetPropertyIgnoreCase(value, "$date", out var dateValue)
@@ -216,7 +217,9 @@ public class DeviceService(HttpClient http, IConfiguration config) : IDeviceServ
         {
             var text = value.GetString();
             if (DateTime.TryParse(text, out date))
+            {
                 return true;
+            }
         }
 
         if (value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var unixMs))
@@ -271,5 +274,11 @@ public class DeviceService(HttpClient http, IConfiguration config) : IDeviceServ
 
         value = default;
         return false;
+    }
+
+    private static HttpClient ConfigureClient(HttpClient client, NavigationManager nav)
+    {
+        client.BaseAddress ??= new Uri(nav.BaseUri);
+        return client;
     }
 }

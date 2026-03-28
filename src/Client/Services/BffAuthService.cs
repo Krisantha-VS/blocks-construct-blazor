@@ -1,37 +1,20 @@
 using System.Net.Http.Json;
 using Blazored.LocalStorage;
 using Client.Models.Auth;
-using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Components;
 
 namespace Client.Services;
 
-public interface IAuthService
-{
-    Task<SignInResponse> SignInAsync(string username, string password);
-    Task<SignInResponse> VerifyMfaAsync(MfaVerifyRequest request);
-    Task ForgotPasswordAsync(string email);
-    Task ResetPasswordAsync(ResetPasswordRequest request);
-    Task SetPasswordAsync(SetPasswordRequest request);
-    Task SignOutAsync();
-    Task<string?> GetAccessTokenAsync();
-}
-
-public class AuthService(
+public class BffAuthService(
     HttpClient http,
+    NavigationManager nav,
     ILocalStorageService localStorage,
-    IConfiguration config,
     AppAuthStateProvider authState) : IAuthService
 {
-    private string ProjectKey => config["ProjectKey"] ?? config["ApiClient:XBlocksKey"] ?? "";
+    private readonly HttpClient _http = ConfigureClient(http, nav);
 
     public async Task<SignInResponse> SignInAsync(string username, string password)
     {
-        if (!string.IsNullOrWhiteSpace(ProjectKey))
-        {
-            http.DefaultRequestHeaders.Remove("x-blocks-key");
-            http.DefaultRequestHeaders.TryAddWithoutValidation("x-blocks-key", ProjectKey);
-        }
-
         var payload = new Dictionary<string, string>
         {
             ["grant_type"] = "password",
@@ -39,14 +22,14 @@ public class AuthService(
             ["password"] = password
         };
 
-        var response = await http.PostAsync("/idp/v1/Authentication/Token", new FormUrlEncodedContent(payload));
+        var response = await _http.PostAsync("/api/auth/token", new FormUrlEncodedContent(payload));
         response.EnsureSuccessStatusCode();
 
         var result = await response.Content.ReadFromJsonAsync<SignInResponse>() ?? new SignInResponse();
 
         if (!result.EnableMfa && !string.IsNullOrWhiteSpace(result.AccessToken))
         {
-            await SetTokensAsync(result.AccessToken, result.RefreshToken ?? "");
+            await SetTokensAsync(result.AccessToken, result.RefreshToken ?? string.Empty);
             authState.NotifyAuthStateChanged();
         }
 
@@ -63,13 +46,13 @@ public class AuthService(
             ["otp"] = request.Code
         };
 
-        var response = await http.PostAsync("/idp/v1/Authentication/Token", new FormUrlEncodedContent(payload));
+        var response = await _http.PostAsync("/api/auth/token", new FormUrlEncodedContent(payload));
         response.EnsureSuccessStatusCode();
 
         var result = await response.Content.ReadFromJsonAsync<SignInResponse>() ?? new SignInResponse();
         if (!string.IsNullOrWhiteSpace(result.AccessToken))
         {
-            await SetTokensAsync(result.AccessToken, result.RefreshToken ?? "");
+            await SetTokensAsync(result.AccessToken, result.RefreshToken ?? string.Empty);
             authState.NotifyAuthStateChanged();
         }
 
@@ -78,21 +61,27 @@ public class AuthService(
 
     public async Task ForgotPasswordAsync(string email)
     {
-        var response = await http.PostAsJsonAsync("/idp/v1/Iam/Recover", new { email, projectKey = ProjectKey });
+        var response = await _http.PostAsJsonAsync("/api/auth/forgot-password", new { email });
         response.EnsureSuccessStatusCode();
     }
 
     public async Task ResetPasswordAsync(ResetPasswordRequest request)
     {
-        var body = new { code = request.Code, newPassword = request.Password, projectKey = ProjectKey };
-        var response = await http.PostAsJsonAsync("/idp/v1/Iam/ResetPassword", body);
+        var response = await _http.PostAsJsonAsync("/api/auth/reset-password", new
+        {
+            code = request.Code,
+            newPassword = request.Password
+        });
         response.EnsureSuccessStatusCode();
     }
 
     public async Task SetPasswordAsync(SetPasswordRequest request)
     {
-        var body = new { code = request.Code, password = request.Password, projectKey = ProjectKey };
-        var response = await http.PostAsJsonAsync("/idp/v1/Iam/Activate", body);
+        var response = await _http.PostAsJsonAsync("/api/auth/activate", new
+        {
+            code = request.Code,
+            password = request.Password
+        });
         response.EnsureSuccessStatusCode();
     }
 
@@ -102,7 +91,8 @@ public class AuthService(
         {
             var refreshToken = NormalizeToken(await localStorage.GetItemAsStringAsync("refresh_token"))
                 ?? NormalizeToken(await localStorage.GetItemAsStringAsync("refreshToken"));
-            await http.PostAsJsonAsync("/idp/v1/Authentication/Logout", new { refreshToken });
+
+            await _http.PostAsJsonAsync("/api/auth/logout", new { refreshToken });
         }
         finally
         {
@@ -141,5 +131,11 @@ public class AuthService(
         }
 
         return token.Trim().Trim('"');
+    }
+
+    private static HttpClient ConfigureClient(HttpClient client, NavigationManager nav)
+    {
+        client.BaseAddress ??= new Uri(nav.BaseUri);
+        return client;
     }
 }

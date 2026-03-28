@@ -2,24 +2,13 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Client.Models.IAM;
 using Client.Models.Profile;
-using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Components;
 
 namespace Client.Services;
 
-public interface IUserService
+public class BffUserService(HttpClient http, NavigationManager nav) : IUserService
 {
-    Task<PagedResult<IamUser>> GetUsersAsync(int page, int pageSize, string? email = null, string? name = null);
-    Task<UserProfile?> GetCurrentProfileAsync();
-    Task InviteUserAsync(AddUserRequest request);
-    Task SendPasswordResetAsync(string email);
-    Task ResendActivationAsync(string email);
-    Task UpdateProfileAsync(string userId, string firstName, string? lastName, string? phoneNumber);
-    Task ChangePasswordAsync(string currentPassword, string newPassword);
-}
-
-public class UserService(HttpClient http, IConfiguration config) : IUserService
-{
-    private string ProjectKey => config["ApiClient:XBlocksKey"] ?? "";
+    private readonly HttpClient _http = ConfigureClient(http, nav);
 
     public async Task<PagedResult<IamUser>> GetUsersAsync(int page, int pageSize, string? email = null, string? name = null)
     {
@@ -28,11 +17,10 @@ public class UserService(HttpClient http, IConfiguration config) : IUserService
             page = page + 1,
             pageSize,
             sort = new { property = "createdDate", isDescending = true },
-            filter = new { email = email ?? "", name = name ?? "" },
-            projectKey = ProjectKey
+            filter = new { email = email ?? string.Empty, name = name ?? string.Empty }
         };
 
-        var response = await http.PostAsJsonAsync("/idp/v1/Iam/GetUsers", body);
+        var response = await _http.PostAsJsonAsync("/api/iam/users/search", body);
         response.EnsureSuccessStatusCode();
 
         return await response.Content.ReadFromJsonAsync<PagedResult<IamUser>>()
@@ -41,7 +29,7 @@ public class UserService(HttpClient http, IConfiguration config) : IUserService
 
     public async Task<UserProfile?> GetCurrentProfileAsync()
     {
-        var response = await http.GetAsync("/idp/v1/Iam/GetAccount");
+        var response = await _http.GetAsync("/api/iam/account");
         response.EnsureSuccessStatusCode();
 
         using var stream = await response.Content.ReadAsStreamAsync();
@@ -66,6 +54,46 @@ public class UserService(HttpClient http, IConfiguration config) : IUserService
         }
 
         return MapAccount(payload);
+    }
+
+    public async Task InviteUserAsync(AddUserRequest request)
+    {
+        var response = await _http.PostAsJsonAsync("/api/iam/users/invite", request);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task SendPasswordResetAsync(string email)
+    {
+        var response = await _http.PostAsJsonAsync("/api/iam/users/recover", new { email });
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task ResendActivationAsync(string email)
+    {
+        var response = await _http.PostAsJsonAsync("/api/iam/users/resend-activation", new { email });
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task UpdateProfileAsync(string userId, string firstName, string? lastName, string? phoneNumber)
+    {
+        var response = await _http.PostAsJsonAsync("/api/iam/users/update", new
+        {
+            userId,
+            firstName,
+            lastName = lastName ?? string.Empty,
+            phoneNumber = phoneNumber ?? string.Empty
+        });
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task ChangePasswordAsync(string currentPassword, string newPassword)
+    {
+        var response = await _http.PostAsJsonAsync("/api/iam/users/change-password", new
+        {
+            oldPassword = currentPassword,
+            newPassword
+        });
+        response.EnsureSuccessStatusCode();
     }
 
     private static UserProfile? MapAccount(JsonElement payload)
@@ -155,11 +183,6 @@ public class UserService(HttpClient http, IConfiguration config) : IUserService
         return string.Empty;
     }
 
-    private static string ReadString(JsonElement source, string propertyName)
-    {
-        return ReadString(source, [propertyName]);
-    }
-
     private static DateTime ReadDateTime(JsonElement source, string propertyName)
     {
         if (!TryGetPropertyIgnoreCase(source, propertyName, out var property))
@@ -222,49 +245,9 @@ public class UserService(HttpClient http, IConfiguration config) : IUserService
         return false;
     }
 
-    public async Task InviteUserAsync(AddUserRequest request)
+    private static HttpClient ConfigureClient(HttpClient client, NavigationManager nav)
     {
-        var body = new
-        {
-            email = request.Email,
-            firstName = request.FirstName,
-            lastName = request.LastName ?? "",
-            phoneNumber = request.PhoneNumber ?? "",
-            language = "en",
-            userPassType = "Plain",
-            password = "",
-            mfaEnabled = false,
-            allowedLogInType = new[] { "Email" },
-            projectKey = ProjectKey
-        };
-        var response = await http.PostAsJsonAsync("/idp/v1/Iam/Create", body);
-        response.EnsureSuccessStatusCode();
-    }
-
-    public async Task SendPasswordResetAsync(string email)
-    {
-        var response = await http.PostAsJsonAsync("/idp/v1/Iam/Recover", new { email, projectKey = ProjectKey });
-        response.EnsureSuccessStatusCode();
-    }
-
-    public async Task ResendActivationAsync(string email)
-    {
-        var response = await http.PostAsJsonAsync("/idp/v1/Iam/ResendActivation", new { email, projectKey = ProjectKey });
-        response.EnsureSuccessStatusCode();
-    }
-
-    public async Task UpdateProfileAsync(string userId, string firstName, string? lastName, string? phoneNumber)
-    {
-        var body = new { userId, firstName, lastName = lastName ?? "", phoneNumber = phoneNumber ?? "", projectKey = ProjectKey };
-        var response = await http.PostAsJsonAsync("/idp/v1/Iam/Update", body);
-        response.EnsureSuccessStatusCode();
-    }
-
-    public async Task ChangePasswordAsync(string currentPassword, string newPassword)
-    {
-        var body = new { oldPassword = currentPassword, newPassword, projectKey = ProjectKey };
-        var response = await http.PostAsJsonAsync("/idp/v1/Iam/ChangePassword", body);
-        response.EnsureSuccessStatusCode();
+        client.BaseAddress ??= new Uri(nav.BaseUri);
+        return client;
     }
 }
-

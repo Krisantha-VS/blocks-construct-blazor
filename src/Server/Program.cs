@@ -4,6 +4,7 @@ using Client.State;
 using Microsoft.AspNetCore.Components.Authorization;
 using Server.Components.Layout;
 using Server.Extensions;
+using Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,22 +23,16 @@ builder.Services.AddScoped<LanguageState>();
 builder.Services.AddTransient<AuthTokenHandler>();
 
 builder.Services.AddHttpClient();
+builder.Services.AddSingleton<IBlocksApiGateway, BlocksApiGateway>();
 
-var apiBase = builder.Configuration["ApiBaseUrl"]
-    ?? builder.Configuration["ApiClient:BaseUrl"]
-    ?? "https://localhost:7001";
-var xBlocksKey = builder.Configuration["ApiSecurity:XBlocksKey"]
-    ?? builder.Configuration["ApiClient:XBlocksKey"];
-
-builder.Services.AddHttpClient<IAuthService, AuthService>(ConfigureBlocksApiClient)
+builder.Services.AddHttpClient<IAuthService, BffAuthService>();
+builder.Services.AddHttpClient<IUserService, BffUserService>()
     .AddHttpMessageHandler<AuthTokenHandler>();
-builder.Services.AddHttpClient<IUserService, UserService>(ConfigureBlocksApiClient)
+builder.Services.AddHttpClient<IDeviceService, BffDeviceService>()
     .AddHttpMessageHandler<AuthTokenHandler>();
-builder.Services.AddHttpClient<IDeviceService, DeviceService>(ConfigureBlocksApiClient)
+builder.Services.AddHttpClient<IInventoryService, InventoryService>()
     .AddHttpMessageHandler<AuthTokenHandler>();
-builder.Services.AddHttpClient<IInventoryService, InventoryService>(ConfigureBlocksApiClient)
-    .AddHttpMessageHandler<AuthTokenHandler>();
-builder.Services.AddHttpClient<ILanguageService, LanguageService>(ConfigureBlocksApiClient);
+builder.Services.AddHttpClient<ILanguageService, BffLanguageService>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -75,12 +70,3 @@ app.MapRazorComponents<App>()
     .AddAdditionalAssemblies(typeof(Client._Imports).Assembly);
 
 app.Run();
-
-void ConfigureBlocksApiClient(HttpClient httpClient)
-{
-    httpClient.BaseAddress = new Uri(apiBase);
-    if (!string.IsNullOrWhiteSpace(xBlocksKey))
-    {
-        httpClient.DefaultRequestHeaders.TryAddWithoutValidation("x-blocks-key", xBlocksKey);
-    }
-}

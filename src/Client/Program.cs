@@ -6,12 +6,10 @@ using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 
-var apiBaseUrl = builder.Configuration["ApiBaseUrl"]
-    ?? builder.Configuration["ApiClient:BaseUrl"]
-    ?? builder.HostEnvironment.BaseAddress;
-var xBlocksKey = builder.Configuration["ProjectKey"]
-    ?? builder.Configuration["ApiSecurity:XBlocksKey"]
-    ?? builder.Configuration["ApiClient:XBlocksKey"];
+void ConfigureLocalApiClient(HttpClient httpClient)
+{
+    httpClient.BaseAddress = new Uri(builder.HostEnvironment.BaseAddress);
+}
 
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddAuthorizationCore();
@@ -22,55 +20,26 @@ builder.Services.AddTransient<AuthTokenHandler>();
 builder.Services.AddSingleton<SidebarState>();
 builder.Services.AddScoped<LanguageState>();
 
-builder.Services.AddHttpClient<IAuthService, AuthService>(ConfigureBlocksApiClient)
+builder.Services.AddHttpClient<IAuthService, BffAuthService>(ConfigureLocalApiClient);
+
+builder.Services.AddHttpClient<IUserService, BffUserService>(ConfigureLocalApiClient)
     .AddHttpMessageHandler<AuthTokenHandler>();
 
-builder.Services.AddHttpClient<IUserService, UserService>(ConfigureBlocksApiClient)
+builder.Services.AddHttpClient<IDeviceService, BffDeviceService>(ConfigureLocalApiClient)
     .AddHttpMessageHandler<AuthTokenHandler>();
 
-builder.Services.AddHttpClient<IDeviceService, DeviceService>(ConfigureBlocksApiClient)
+builder.Services.AddHttpClient<IInventoryService, InventoryService>(ConfigureLocalApiClient)
     .AddHttpMessageHandler<AuthTokenHandler>();
 
-builder.Services.AddHttpClient<IInventoryService, InventoryService>(ConfigureBlocksApiClient)
-    .AddHttpMessageHandler<AuthTokenHandler>();
+builder.Services.AddHttpClient<ILanguageService, BffLanguageService>(ConfigureLocalApiClient);
 
-builder.Services.AddHttpClient<ILanguageService, LanguageService>(ConfigureBlocksApiClient);
-
-// Default HttpClient for same-host app/API calls with x-blocks-key header.
+// Default HttpClient for same-host app/API calls.
 builder.Services.AddScoped(sp =>
 {
-    var httpClient = new HttpClient
+    return new HttpClient
     {
         BaseAddress = new Uri(builder.HostEnvironment.BaseAddress)
     };
-    
-    if (!string.IsNullOrWhiteSpace(xBlocksKey))
-    {
-        httpClient.DefaultRequestHeaders.TryAddWithoutValidation("x-blocks-key", xBlocksKey);
-    }
-    
-    return httpClient;
 });
-
-// Named client for cross-service API calls that require x-blocks-key.
-builder.Services.AddHttpClient("BlocksExternalApi", httpClient =>
-{
-    httpClient.BaseAddress = new Uri(apiBaseUrl);
-
-    if (!string.IsNullOrWhiteSpace(xBlocksKey))
-    {
-        httpClient.DefaultRequestHeaders.TryAddWithoutValidation("x-blocks-key", xBlocksKey);
-    }
-});
-
-void ConfigureBlocksApiClient(HttpClient httpClient)
-{
-    httpClient.BaseAddress = new Uri(apiBaseUrl);
-    if (!string.IsNullOrWhiteSpace(xBlocksKey))
-    {
-        httpClient.DefaultRequestHeaders.TryAddWithoutValidation("x-blocks-key", xBlocksKey);
-    }
-}
-
 
 await builder.Build().RunAsync();
