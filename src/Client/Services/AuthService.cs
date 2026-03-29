@@ -19,10 +19,10 @@ public interface IAuthService
 public class AuthService(
     HttpClient http,
     ILocalStorageService localStorage,
-    IConfiguration config,
+    RuntimeClientConfig runtimeConfig,
     AppAuthStateProvider authState) : IAuthService
 {
-    private string ProjectKey => config["ProjectKey"] ?? config["ApiClient:XBlocksKey"] ?? "";
+    private string ProjectKey => runtimeConfig.XBlocksKey;
 
     public async Task<SignInResponse> SignInAsync(string username, string password)
     {

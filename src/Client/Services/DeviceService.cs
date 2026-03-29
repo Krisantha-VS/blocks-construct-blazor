@@ -9,12 +9,9 @@ public interface IDeviceService
     Task<DeviceSessionResponse> GetSessionsAsync(string userId, int page, int pageSize);
 }
 
-public class DeviceService(HttpClient http, IConfiguration config) : IDeviceService
+public class DeviceService(HttpClient http, RuntimeClientConfig runtimeConfig) : IDeviceService
 {
-    private string ProjectKey => config["ProjectKey"]
-        ?? config["ApiSecurity:XBlocksKey"]
-        ?? config["ApiClient:XBlocksKey"]
-        ?? string.Empty;
+    private string ProjectKey => runtimeConfig.XBlocksKey;
 
     public async Task<DeviceSessionResponse> GetSessionsAsync(string userId, int page, int pageSize)
     {

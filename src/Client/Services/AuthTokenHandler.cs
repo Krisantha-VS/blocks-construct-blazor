@@ -16,7 +16,7 @@ namespace Client.Services;
 public sealed class AuthTokenHandler(
     ILocalStorageService localStorage,
     NavigationManager nav,
-    IConfiguration config) : DelegatingHandler
+    RuntimeClientConfig runtimeConfig) : DelegatingHandler
 {
     private static readonly SemaphoreSlim RefreshLock = new(1, 1);
     private static readonly HttpRequestOptionsKey<bool> IsRetryRequestOption = new("AuthTokenHandler.IsRetry");
@@ -73,10 +73,7 @@ public sealed class AuthTokenHandler(
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         }
 
-        var projectKey = config["ProjectKey"]
-            ?? config["ApiSecurity:XBlocksKey"]
-            ?? config["ApiClient:XBlocksKey"]
-            ?? string.Empty;
+        var projectKey = runtimeConfig.XBlocksKey;
 
         if (!string.IsNullOrWhiteSpace(projectKey) && !request.Headers.Contains("x-blocks-key"))
         {
@@ -94,13 +91,8 @@ public sealed class AuthTokenHandler(
                 return false;
             }
 
-            var apiBase = config["ApiBaseUrl"]
-                ?? config["ApiClient:BaseUrl"]
-                ?? string.Empty;
-            var projectKey = config["ProjectKey"]
-                ?? config["ApiSecurity:XBlocksKey"]
-                ?? config["ApiClient:XBlocksKey"]
-                ?? string.Empty;
+            var apiBase = runtimeConfig.MicroserviceApiBaseUrl;
+            var projectKey = runtimeConfig.XBlocksKey;
 
             if (string.IsNullOrWhiteSpace(apiBase))
             {

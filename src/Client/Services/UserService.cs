@@ -17,9 +17,9 @@ public interface IUserService
     Task ChangePasswordAsync(string currentPassword, string newPassword);
 }
 
-public class UserService(HttpClient http, IConfiguration config) : IUserService
+public class UserService(HttpClient http, RuntimeClientConfig runtimeConfig) : IUserService
 {
-    private string ProjectKey => config["ApiClient:XBlocksKey"] ?? "";
+    private string ProjectKey => runtimeConfig.XBlocksKey;
 
     public async Task<PagedResult<IamUser>> GetUsersAsync(int page, int pageSize, string? email = null, string? name = null)
     {

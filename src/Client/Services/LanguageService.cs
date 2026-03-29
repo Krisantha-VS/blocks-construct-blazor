@@ -11,14 +11,11 @@ public interface ILanguageService
     Task<Dictionary<string, string>> GetTranslationsAsync(string language, string moduleId, string? moduleName = null);
 }
 
-public class LanguageService(HttpClient http, IConfiguration config) : ILanguageService
+public class LanguageService(HttpClient http, RuntimeClientConfig runtimeConfig) : ILanguageService
 {
     private readonly HashSet<string> _generateAttempted = new(StringComparer.OrdinalIgnoreCase);
 
-    private string ProjectKey => config["ProjectKey"]
-        ?? config["ApiSecurity:XBlocksKey"]
-        ?? config["ApiClient:XBlocksKey"]
-        ?? string.Empty;
+    private string ProjectKey => runtimeConfig.XBlocksKey;
 
     public async Task<List<LanguageItem>> GetAvailableLanguagesAsync()
     {

@@ -3,15 +3,25 @@ using Client.Services;
 using Client.State;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
+using System.Net.Http.Json;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 
-var apiBaseUrl = builder.Configuration["ApiBaseUrl"]
-    ?? builder.Configuration["ApiClient:BaseUrl"]
-    ?? builder.HostEnvironment.BaseAddress;
-var xBlocksKey = builder.Configuration["ProjectKey"]
-    ?? builder.Configuration["ApiSecurity:XBlocksKey"]
-    ?? builder.Configuration["ApiClient:XBlocksKey"];
+var bootstrapClient = new HttpClient
+{
+    BaseAddress = new Uri(builder.HostEnvironment.BaseAddress)
+};
+
+var runtimeConfig = await bootstrapClient.GetFromJsonAsync<RuntimeClientConfig>("client-config")
+    ?? throw new InvalidOperationException("Runtime config endpoint returned no payload.");
+var apiBaseUrl = runtimeConfig.MicroserviceApiBaseUrl
+    ?? throw new InvalidOperationException("Runtime config is missing MicroserviceApiBaseUrl.");
+var xBlocksKey = runtimeConfig.XBlocksKey;
+
+if (string.IsNullOrWhiteSpace(xBlocksKey))
+    throw new InvalidOperationException("Runtime config is missing XBlocksKey.");
+
+builder.Services.AddSingleton(runtimeConfig);
 
 builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddAuthorizationCore();
@@ -36,41 +46,36 @@ builder.Services.AddHttpClient<IInventoryService, InventoryService>(ConfigureBlo
 
 builder.Services.AddHttpClient<ILanguageService, LanguageService>(ConfigureBlocksApiClient);
 
-// Default HttpClient for same-host app/API calls with x-blocks-key header.
+// "LocalApi" — calls to this app's own Server controllers (e.g. /api/sales-orders).
+// Always uses the same host the WASM was served from.
+builder.Services.AddHttpClient("LocalApi", httpClient =>
+{
+    httpClient.BaseAddress = new Uri(builder.HostEnvironment.BaseAddress);
+    httpClient.DefaultRequestHeaders.TryAddWithoutValidation("x-blocks-key", xBlocksKey);
+});
+
+// Default HttpClient also points to own server (for untyped injection via @inject HttpClient).
 builder.Services.AddScoped(sp =>
 {
     var httpClient = new HttpClient
     {
         BaseAddress = new Uri(builder.HostEnvironment.BaseAddress)
     };
-    
-    if (!string.IsNullOrWhiteSpace(xBlocksKey))
-    {
-        httpClient.DefaultRequestHeaders.TryAddWithoutValidation("x-blocks-key", xBlocksKey);
-    }
-    
+    httpClient.DefaultRequestHeaders.TryAddWithoutValidation("x-blocks-key", xBlocksKey);
     return httpClient;
 });
 
-// Named client for cross-service API calls that require x-blocks-key.
+// "BlocksExternalApi" — calls to the external SELISE Blocks microservice API.
 builder.Services.AddHttpClient("BlocksExternalApi", httpClient =>
 {
     httpClient.BaseAddress = new Uri(apiBaseUrl);
-
-    if (!string.IsNullOrWhiteSpace(xBlocksKey))
-    {
-        httpClient.DefaultRequestHeaders.TryAddWithoutValidation("x-blocks-key", xBlocksKey);
-    }
+    httpClient.DefaultRequestHeaders.TryAddWithoutValidation("x-blocks-key", xBlocksKey);
 });
 
 void ConfigureBlocksApiClient(HttpClient httpClient)
 {
     httpClient.BaseAddress = new Uri(apiBaseUrl);
-    if (!string.IsNullOrWhiteSpace(xBlocksKey))
-    {
-        httpClient.DefaultRequestHeaders.TryAddWithoutValidation("x-blocks-key", xBlocksKey);
-    }
+    httpClient.DefaultRequestHeaders.TryAddWithoutValidation("x-blocks-key", xBlocksKey);
 }
-
 
 await builder.Build().RunAsync();

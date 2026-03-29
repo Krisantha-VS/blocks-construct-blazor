@@ -5,6 +5,44 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Server.Components.Layout;
 using Server.Extensions;
 
+// Load .env file for local development before builder reads configuration.
+// Real environment variables (Docker / Kubernetes / CI) always take precedence.
+// Walk up from CWD to find .env — handles both "dotnet run" from repo root
+// and "dotnet watch --project src/Server" where CWD is src/Server.
+var envFile = FindEnvFile(Directory.GetCurrentDirectory());
+if (envFile is not null)
+{
+    foreach (var line in File.ReadAllLines(envFile))
+    {
+        if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith('#'))
+            continue;
+
+        var separatorIndex = line.IndexOf('=');
+        if (separatorIndex <= 0)
+            continue;
+
+        var key = line[..separatorIndex].Trim();
+        var value = line[(separatorIndex + 1)..].Trim();
+
+        // Only set if not already defined (real env vars win)
+        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable(key)))
+            Environment.SetEnvironmentVariable(key, value);
+    }
+}
+
+static string? FindEnvFile(string startDir)
+{
+    var dir = new DirectoryInfo(startDir);
+    while (dir is not null)
+    {
+        var candidate = Path.Combine(dir.FullName, ".env");
+        if (File.Exists(candidate))
+            return candidate;
+        dir = dir.Parent;
+    }
+    return null;
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
@@ -23,11 +61,27 @@ builder.Services.AddTransient<AuthTokenHandler>();
 
 builder.Services.AddHttpClient();
 
-var apiBase = builder.Configuration["ApiBaseUrl"]
-    ?? builder.Configuration["ApiClient:BaseUrl"]
-    ?? "https://localhost:7001";
-var xBlocksKey = builder.Configuration["ApiSecurity:XBlocksKey"]
-    ?? builder.Configuration["ApiClient:XBlocksKey"];
+// Read from environment variables or configuration (no hardcoded URL/key values)
+var apiBase = Environment.GetEnvironmentVariable("MICROSERVICE_API_BASE_URL")
+    ?? builder.Configuration["MicroserviceApiBaseUrl"];
+
+if (!Uri.TryCreate(apiBase, UriKind.Absolute, out var apiBaseUri))
+{
+    throw new InvalidOperationException("Missing or invalid microservice API base URL. Set MICROSERVICE_API_BASE_URL or MicroserviceApiBaseUrl in configuration.");
+}
+
+var xBlocksKey = Environment.GetEnvironmentVariable("X_BLOCKS_KEY")
+    ?? builder.Configuration["XBlocksKey"];
+
+if (string.IsNullOrWhiteSpace(xBlocksKey))
+    throw new InvalidOperationException(
+        "X_BLOCKS_KEY is required. Add it to your .env file or set the environment variable.");
+
+builder.Services.AddSingleton(new RuntimeClientConfig
+{
+    MicroserviceApiBaseUrl = apiBaseUri.ToString(),
+    XBlocksKey = xBlocksKey
+});
 
 builder.Services.AddHttpClient<IAuthService, AuthService>(ConfigureBlocksApiClient)
     .AddHttpMessageHandler<AuthTokenHandler>();
@@ -68,6 +122,13 @@ if (!app.Environment.IsDevelopment())
 app.UseAntiforgery();
 
 app.MapControllers();
+
+app.MapGet("/client-config", () => Results.Json(new
+{
+    MicroserviceApiBaseUrl = apiBase,
+    XBlocksKey = xBlocksKey
+}));
+
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()
@@ -78,9 +139,6 @@ app.Run();
 
 void ConfigureBlocksApiClient(HttpClient httpClient)
 {
-    httpClient.BaseAddress = new Uri(apiBase);
-    if (!string.IsNullOrWhiteSpace(xBlocksKey))
-    {
-        httpClient.DefaultRequestHeaders.TryAddWithoutValidation("x-blocks-key", xBlocksKey);
-    }
+    httpClient.BaseAddress = apiBaseUri;
+    httpClient.DefaultRequestHeaders.TryAddWithoutValidation("x-blocks-key", xBlocksKey);
 }
