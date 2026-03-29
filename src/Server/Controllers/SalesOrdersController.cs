@@ -9,6 +9,7 @@ namespace Server.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/sales-orders")]
+[Authorize]
 public class SalesOrdersController : ControllerBase
 {
     private readonly ISalesOrderService _salesOrderService;
@@ -27,7 +28,6 @@ public class SalesOrdersController : ControllerBase
     /// </summary>
     /// <returns>A list of sales orders.</returns>
     [HttpGet]
-    [Authorize]
     public async Task<ActionResult<IEnumerable<SalesOrder>>> GetAll()
     {
         var orders = await _salesOrderService.GetAllAsync();
@@ -40,7 +40,7 @@ public class SalesOrdersController : ControllerBase
     /// <param name="id">The unique order identifier.</param>
     /// <returns>The matching sales order, if found.</returns>
     [HttpGet("{id}")]
-    [Authorize]
+    [Authorize(Policy = "Protected")]
     public async Task<ActionResult<SalesOrder>> GetById(string id)
     {
         var order = await _salesOrderService.GetByIdAsync(id);
@@ -53,7 +53,6 @@ public class SalesOrdersController : ControllerBase
     /// <param name="status">The order status filter.</param>
     /// <returns>A list of sales orders with the requested status.</returns>
     [HttpGet("by-status/{status}")]
-    [Authorize]
     public async Task<ActionResult<IEnumerable<SalesOrder>>> GetByStatus(string status)
     {
         var orders = await _salesOrderService.GetByStatusAsync(status);

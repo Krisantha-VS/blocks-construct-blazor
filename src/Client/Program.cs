@@ -5,8 +5,12 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using System.Net.Http.Json;
 
+#region Bootstrap
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
+#endregion
 
+#region Runtime Config Bootstrap
+// Bootstrap client calls the server endpoint to get runtime values for WASM.
 var bootstrapClient = new HttpClient
 {
     BaseAddress = new Uri(builder.HostEnvironment.BaseAddress)
@@ -25,6 +29,9 @@ if (string.IsNullOrWhiteSpace(xBlocksKey))
 if (string.IsNullOrWhiteSpace(projectSlug))
     throw new InvalidOperationException("Runtime config is missing ProjectSlug.");
 
+#endregion
+
+#region Service Registration
 builder.Services.AddSingleton(runtimeConfig);
 
 builder.Services.AddBlazoredLocalStorage();
@@ -74,11 +81,16 @@ builder.Services.AddHttpClient("BlocksExternalApi", httpClient =>
     httpClient.BaseAddress = new Uri(apiBaseUrl);
     httpClient.DefaultRequestHeaders.TryAddWithoutValidation("x-blocks-key", xBlocksKey);
 });
+#endregion
 
+#region Local Helpers
 void ConfigureBlocksApiClient(HttpClient httpClient)
 {
     httpClient.BaseAddress = new Uri(apiBaseUrl);
     httpClient.DefaultRequestHeaders.TryAddWithoutValidation("x-blocks-key", xBlocksKey);
 }
+#endregion
 
+#region Run
 await builder.Build().RunAsync();
+#endregion

@@ -3,33 +3,24 @@ using Blazored.LocalStorage;
 using Client.Services;
 using Client.State;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using Server.Components.Layout;
 using Server.Extensions;
+using System.Threading.RateLimiting;
 
+#region Bootstrap
 const string ServiceName = "blocks-construct-blazor-server";
 
 await ApplicationConfigurations.ConfigureLogAndSecretsAsync(ServiceName, VaultType.Azure);
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Blocks: loads API/environment configuration conventions used by the platform.
 ApplicationConfigurations.ConfigureApiEnv(builder, args);
+#endregion
 
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents()
-    .AddInteractiveWebAssemblyComponents();
-
-builder.Services.AddBlazoredLocalStorage();
-builder.Services
-    .AddAuthorizationCore();
-builder.Services.AddCascadingAuthenticationState();
-builder.Services.AddScoped<AuthenticationStateProvider, AppAuthStateProvider>();
-builder.Services.AddScoped<AppAuthStateProvider>();
-builder.Services.AddSingleton<SidebarState>();
-builder.Services.AddScoped<LanguageState>();
-builder.Services.AddTransient<AuthTokenHandler>();
-
-builder.Services.AddHttpClient();
-
+#region Configuration Values
+// Read runtime values once and reuse for server-side and client bootstrap config.
 var apiBase = GetRequiredConfigurationValue(
     builder.Configuration,
     "MICROSERVICE_API_BASE_URL",
@@ -49,6 +40,39 @@ var projectSlug = GetRequiredConfigurationValue(
     builder.Configuration,
     "PROJECT_SLUG",
     "ProjectSlug");
+#endregion
+
+#region Service Registration
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents()
+    .AddInteractiveWebAssemblyComponents();
+
+builder.Services.AddBlazoredLocalStorage();
+builder.Services
+    .AddAuthorizationCore();
+builder.Services.AddCascadingAuthenticationState();
+builder.Services.AddScoped<AuthenticationStateProvider, AppAuthStateProvider>();
+builder.Services.AddScoped<AppAuthStateProvider>();
+builder.Services.AddSingleton<SidebarState>();
+builder.Services.AddScoped<LanguageState>();
+builder.Services.AddTransient<AuthTokenHandler>();
+
+builder.Services.AddHttpClient();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("api-per-ip", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 120,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 20,
+                AutoReplenishment = true
+            }));
+});
 
 builder.Services.AddSingleton(new RuntimeClientConfig
 {
@@ -68,21 +92,24 @@ builder.Services.AddHttpClient<IInventoryService, InventoryService>(ConfigureBlo
 builder.Services.AddHttpClient<ILanguageService, LanguageService>(ConfigureBlocksApiClient);
 builder.Services.AddHttpClient<ISsoService, SsoService>(ConfigureBlocksApiClient);
 
+// Blocks: registers platform services (auth/token plumbing, messaging, etc.).
 ApplicationConfigurations.ConfigureServices(builder.Services, new MessageConfiguration
 {
-    AzureServiceBusConfiguration = new()
-    {
-        Queues = new List<string>(),
-        Topics = new List<string>(),
-    },
+    // rabbit settings
 });
 
+// Blocks: registers platform API dependencies.
 ApplicationConfigurations.ConfigureApi(builder.Services);
 
+// App: feature service registrations delegated to local extension methods.
 builder.Services.AddApplicationServices(builder.Environment.WebRootPath);
+#endregion
 
+#region Build App
 var app = builder.Build();
+#endregion
 
+#region Middleware Pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseWebAssemblyDebugging();
@@ -101,18 +128,18 @@ app.UseCors(policy => policy
     .SetIsOriginAllowed(_ => true)
     .AllowCredentials()
     .SetPreflightMaxAge(TimeSpan.FromDays(365)));
+app.UseRateLimiter();
+app.UseRouting();
 
 app.UseWhen(
     ctx => ctx.Request.Path.StartsWithSegments("/api"),
     apiPipeline =>
     {
-        apiPipeline.UseMiddleware<TenantValidationMiddleware>();
-        apiPipeline.UseMiddleware<GlobalExceptionHandlerMiddleware>();
-        apiPipeline.UseAuthentication();
-        apiPipeline.UseAuthorization();
+        // Blocks: apply API-only tenant/auth middleware for the /api branch in Blazor-hosted apps.
+        ApplicationConfigurations.ConfigureApiBranchMiddleware(apiPipeline);
     });
 
-app.MapControllers();
+app.MapControllers().RequireRateLimiting("api-per-ip");
 
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 if (!app.Environment.IsDevelopment())
@@ -120,7 +147,9 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 app.UseAntiforgery();
+#endregion
 
+#region Endpoints
 app.MapGet("/client-config", () => Results.Json(new
 {
     MicroserviceApiBaseUrl = apiBase,
@@ -133,9 +162,13 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()
     .AddInteractiveWebAssemblyRenderMode()
     .AddAdditionalAssemblies(typeof(Client._Imports).Assembly);
+#endregion
 
+#region Run
 await app.RunAsync();
+#endregion
 
+#region Local Helpers
 void ConfigureBlocksApiClient(HttpClient httpClient)
 {
     httpClient.BaseAddress = apiBaseUri;
@@ -155,3 +188,4 @@ static string GetRequiredConfigurationValue(IConfiguration configuration, params
 
     throw new InvalidOperationException($"Missing required configuration. Set one of: {string.Join(", ", keys)}.");
 }
+#endregion
