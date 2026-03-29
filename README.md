@@ -42,16 +42,12 @@ git clone https://github.com/SELISEdigitalplatforms/blocks-construct-blazor.git
 cd blocks-construct-blazor
 ```
 
-### 2. Configure Environment
+### 2. Prepare Runtime Settings
 
-Create a `.env` file in the project root:
+Get these values from **SELISE Blocks Cloud Portal** → Project settings:
 
-```bash
-MICROSERVICE_API_BASE_URL=<your_blocks_api_url>
-X_BLOCKS_KEY=<your_blocks_api_key>
-```
-
-**Get these values from SELISE Blocks Cloud Portal** → Project settings
+- `MICROSERVICE_API_BASE_URL` (required)
+- `X_BLOCKS_KEY` (required)
 
 ### 3. Install Dependencies
 
@@ -62,7 +58,9 @@ dotnet restore
 ### 4. Run the Project
 
 ```bash
-dotnet watch --project src/Server
+dotnet watch --project src/Server -- \
+  --MICROSERVICE_API_BASE_URL=<your_blocks_api_url> \
+  --X_BLOCKS_KEY=<your_blocks_api_key>
 ```
 
 The application starts at `https://localhost:7075`
@@ -96,7 +94,7 @@ src/
 
 ## Configuration
 
-The application reads configuration from **environment variables** and optional config values. This approach supports all deployment scenarios: local development, Docker, Kubernetes, and CI/CD.
+The application reads configuration from **command-line args, environment variables, and appsettings**. This approach supports local development, Docker, Kubernetes, and CI/CD.
 
 ### Environment Variables
 
@@ -106,28 +104,26 @@ The application reads configuration from **environment variables** and optional 
 | `X_BLOCKS_KEY` | Blocks API authentication key | none |
 
 **Resolution order:**
-1. Environment variables (highest priority)
-2. `appsettings.{Environment}.json` fallback (e.g., `appsettings.Development.json`)
-3. No hardcoded URL/key defaults are used
+1. Command-line args (highest priority), e.g. `--MICROSERVICE_API_BASE_URL=...`, `--X_BLOCKS_KEY=...`
+2. Environment variables
+3. `appsettings.{Environment}.json` fallback (e.g., `appsettings.Development.json`)
 
-### Local Development (`.env` file)
+### Local Development (Command Args)
 
-Create a `.env` file in the project root:
+Run with explicit args:
 
 ```bash
-MICROSERVICE_API_BASE_URL=<your_blocks_api_url>
-X_BLOCKS_KEY=<your_blocks_api_key>
+dotnet run --project src/Server/Server.csproj -- \
+  --MICROSERVICE_API_BASE_URL=<your_blocks_api_url> \
+  --X_BLOCKS_KEY=<your_blocks_api_key>
 ```
 
-**Get these from SELISE Blocks Cloud Portal** → Project settings
+You can also use split-arg format:
 
-The server now auto-loads `.env` for local runs. Values provided by real environment variables (Docker/Kubernetes/CI) still take precedence.
-
-**Add `.env` to `.gitignore`:**
-```
-.env
-.env.local
-*.local
+```bash
+dotnet run --project src/Server/Server.csproj -- \
+  --MICROSERVICE_API_BASE_URL <your_blocks_api_url> \
+  --X_BLOCKS_KEY <your_blocks_api_key>
 ```
 
 ### Docker
@@ -379,7 +375,9 @@ dotnet test
 ```bash
 dotnet restore
 dotnet build src/Server/Server.csproj
-dotnet run --project src/Server/Server.csproj
+dotnet run --project src/Server/Server.csproj -- \
+  --MICROSERVICE_API_BASE_URL=<your_blocks_api_url> \
+  --X_BLOCKS_KEY=<your_blocks_api_key>
 ```
 
 Hot reload:
@@ -407,13 +405,6 @@ docker build -t blocks-construct .
 docker run -e MICROSERVICE_API_BASE_URL=<your_blocks_api_url> \
            -e X_BLOCKS_KEY=<your_blocks_api_key> \
            -p 8080:8080 blocks-construct
-```
-
-Using `.env` directly:
-
-```bash
-docker build -t blocks-construct .
-docker run --env-file .env -p 8080:8080 blocks-construct
 ```
 
 ## Adding Features
@@ -463,6 +454,7 @@ docker run --env-file .env -p 8080:8080 blocks-construct
 | Port 7075 in use | Change port in `launchSettings.json` |
 | Tailwind not compiling | Run `npm run css:build` |
 | Auth token expired | Clear LocalStorage and log in again |
+| `Missing or invalid API base URL` at startup | Pass `--MICROSERVICE_API_BASE_URL=...` or set `MICROSERVICE_API_BASE_URL` env var |
 | CORS errors | Check `MICROSERVICE_API_BASE_URL` and `X_BLOCKS_KEY` env vars |
 
 ## Best Practices

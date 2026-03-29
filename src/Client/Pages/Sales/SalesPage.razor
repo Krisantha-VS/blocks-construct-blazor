@@ -1,0 +1,179 @@
+@page "/sales"
+@rendermode @(new InteractiveAutoRenderMode(prerender: false))
+@inject ISalesOrderApiService SalesOrderService
+@inject NavigationManager Nav
+
+<PageTitle>Sales</PageTitle>
+<RequireClientAuth />
+
+<div class="flex w-full flex-col gap-6">
+    <div class="flex flex-col gap-1">
+        <h1 class="text-2xl font-bold tracking-tight text-high-emphasis">Sales Orders</h1>
+        <p class="text-sm text-medium-emphasis">Review protected sales order data from the server API.</p>
+    </div>
+
+    <div class="rounded-lg border bg-card p-4 sm:p-5">
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
+            <div class="flex flex-col gap-1.5 md:col-span-2">
+                <label for="sales-search" class="text-xs font-semibold uppercase tracking-wide text-medium-emphasis">Search</label>
+                <input id="sales-search"
+                       type="text"
+                       @bind="_search"
+                       @bind:event="oninput"
+                       placeholder="Search by order id, customer, or email"
+                       class="form-input" />
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+                <label for="sales-status" class="text-xs font-semibold uppercase tracking-wide text-medium-emphasis">Status</label>
+                <select id="sales-status" @bind="_selectedStatus" @bind:after="LoadOrdersAsync" class="form-input">
+                    <option value="">All</option>
+                    @foreach (var status in _availableStatuses)
+                    {
+                        <option value="@status">@status</option>
+                    }
+                </select>
+            </div>
+
+            <div class="flex items-end justify-end">
+                <button @onclick="ClearFilters"
+                        type="button"
+                        class="rounded-md border border-border px-3 py-2 text-sm font-medium text-medium-emphasis hover:bg-muted hover:text-high-emphasis">
+                    Clear filters
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="overflow-hidden rounded-lg border bg-card">
+        @if (_isLoading)
+        {
+            <div class="flex h-40 items-center justify-center"><LoadingSpinner /></div>
+        }
+        else if (!string.IsNullOrWhiteSpace(_errorMessage))
+        {
+            <div class="px-4 py-12 text-center text-sm text-destructive">@_errorMessage</div>
+        }
+        else
+        {
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-muted/50">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-medium text-medium-emphasis">Order</th>
+                            <th class="px-4 py-3 text-left font-medium text-medium-emphasis">Customer</th>
+                            <th class="hidden px-4 py-3 text-left font-medium text-medium-emphasis md:table-cell">Ordered</th>
+                            <th class="hidden px-4 py-3 text-left font-medium text-medium-emphasis lg:table-cell">Items</th>
+                            <th class="px-4 py-3 text-left font-medium text-medium-emphasis">Status</th>
+                            <th class="px-4 py-3 text-right font-medium text-medium-emphasis">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-border">
+                        @if (FilteredOrders.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="6" class="px-4 py-12 text-center text-medium-emphasis">No sales orders found.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var order in FilteredOrders)
+                            {
+                                <tr class="cursor-pointer transition-colors hover:bg-muted/30"
+                                    @onclick='() => Nav.NavigateTo($"/sales/{order.Id}")'>
+                                    <td class="px-4 py-3">
+                                        <div class="font-medium text-high-emphasis">@order.Id</div>
+                                        <div class="text-xs text-medium-emphasis">@order.ContactEmail</div>
+                                    </td>
+                                    <td class="px-4 py-3 text-medium-emphasis">@order.Customer</td>
+                                    <td class="hidden px-4 py-3 text-medium-emphasis md:table-cell">@order.OrderDate.ToString("dd MMM yyyy")</td>
+                                    <td class="hidden px-4 py-3 text-medium-emphasis lg:table-cell">@order.Items.Count</td>
+                                    <td class="px-4 py-3">
+                                        <span class="@GetStatusBadgeClass(order.Status)">@order.Status</span>
+                                    </td>
+                                    <td class="px-4 py-3 text-right font-medium text-high-emphasis">@order.Total.ToString("C")</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<SalesOrder> _orders = [];
+    private List<string> _availableStatuses = [];
+    private bool _isLoading = true;
+    private string _search = string.Empty;
+    private string _selectedStatus = string.Empty;
+    private string _errorMessage = string.Empty;
+
+    private IReadOnlyList<SalesOrder> FilteredOrders => _orders
+        .Where(order => string.IsNullOrWhiteSpace(_search)
+                        || order.Id.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                        || order.Customer.Contains(_search, StringComparison.OrdinalIgnoreCase)
+                        || order.ContactEmail.Contains(_search, StringComparison.OrdinalIgnoreCase))
+        .ToList();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await LoadOrdersAsync();
+    }
+
+    private async Task LoadOrdersAsync()
+    {
+        try
+        {
+            _isLoading = true;
+            _errorMessage = string.Empty;
+
+            _orders = string.IsNullOrWhiteSpace(_selectedStatus)
+                ? [.. await SalesOrderService.GetAllAsync()]
+                : [.. await SalesOrderService.GetByStatusAsync(_selectedStatus)];
+
+            _availableStatuses = [.. _availableStatuses
+                .Concat(_orders.Select(order => order.Status))
+                .Where(status => !string.IsNullOrWhiteSpace(status))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(status => status, StringComparer.OrdinalIgnoreCase)];
+        }
+        catch
+        {
+            _orders = [];
+            _errorMessage = "Unable to load sales orders right now.";
+        }
+        finally
+        {
+            _isLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ClearFilters()
+    {
+        _search = string.Empty;
+        _selectedStatus = string.Empty;
+        await LoadOrdersAsync();
+    }
+
+    private static string GetStatusBadgeClass(string status)
+    {
+        var baseClass = "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ";
+
+        return status.ToLowerInvariant() switch
+        {
+            "delivered" => baseClass + "border-success text-success",
+            "shipped" => baseClass + "border-sky-300 text-sky-700",
+            "processing" => baseClass + "border-amber-300 text-amber-700",
+            "cancelled" => baseClass + "border-red-300 text-red-600",
+            _ => baseClass + "border-border text-medium-emphasis"
+        };
+    }
+}

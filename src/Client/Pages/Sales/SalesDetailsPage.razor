@@ -1,0 +1,161 @@
+@page "/sales/{OrderId}"
+@rendermode @(new InteractiveAutoRenderMode(prerender: false))
+@inject ISalesOrderApiService SalesOrderService
+@inject NavigationManager Nav
+
+<PageTitle>Sales Order Details</PageTitle>
+<RequireClientAuth />
+
+@if (_isLoading)
+{
+    <div class="flex h-64 items-center justify-center"><LoadingSpinner /></div>
+}
+else if (!string.IsNullOrWhiteSpace(_errorMessage))
+{
+    <div class="py-24 text-center text-medium-emphasis">@_errorMessage</div>
+}
+else if (_order is null)
+{
+    <div class="py-24 text-center text-medium-emphasis">Sales order not found.</div>
+}
+else
+{
+    <div class="flex max-w-6xl flex-col gap-6">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <button @onclick='() => Nav.NavigateTo("/sales")'
+                    class="flex items-center gap-1 text-sm text-medium-emphasis hover:text-primary"
+                    type="button">
+                Back to Sales
+            </button>
+
+            <span class="@GetStatusBadgeClass(_order.Status)">@_order.Status</span>
+        </div>
+
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
+            <div class="rounded-lg border bg-card p-6">
+                <div class="flex flex-col gap-5">
+                    <div>
+                        <p class="text-sm text-medium-emphasis">Order ID</p>
+                        <h1 class="text-2xl font-bold tracking-tight text-high-emphasis">@_order.Id</h1>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <DetailField Label="Customer" Value="@_order.Customer" />
+                        <DetailField Label="Contact Email" Value="@_order.ContactEmail" />
+                        <DetailField Label="Order Date" Value="@OrderDateText" />
+                        <DetailField Label="Shipped Date" Value="@ShippedDateText" />
+                    </div>
+
+                    <div>
+                        <p class="text-sm font-medium text-medium-emphasis">Shipping Address</p>
+                        <p class="mt-1 whitespace-pre-line text-sm text-high-emphasis">@_order.ShippingAddress</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rounded-lg border bg-card p-6">
+                <h2 class="text-lg font-semibold text-high-emphasis">Totals</h2>
+                <dl class="mt-4 space-y-3 text-sm">
+                    <div class="flex items-center justify-between gap-4">
+                        <dt class="text-medium-emphasis">Subtotal</dt>
+                        <dd class="font-medium text-high-emphasis">@_order.Subtotal.ToString("C")</dd>
+                    </div>
+                    <div class="flex items-center justify-between gap-4">
+                        <dt class="text-medium-emphasis">Tax</dt>
+                        <dd class="font-medium text-high-emphasis">@_order.Tax.ToString("C")</dd>
+                    </div>
+                    <div class="flex items-center justify-between gap-4 border-t pt-3">
+                        <dt class="font-semibold text-high-emphasis">Grand Total</dt>
+                        <dd class="text-base font-bold text-high-emphasis">@_order.Total.ToString("C")</dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
+
+        <div class="overflow-hidden rounded-lg border bg-card">
+            <div class="border-b px-6 py-4">
+                <h2 class="text-lg font-semibold text-high-emphasis">Items</h2>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-muted/50">
+                        <tr>
+                            <th class="px-4 py-3 text-left font-medium text-medium-emphasis">Product</th>
+                            <th class="px-4 py-3 text-left font-medium text-medium-emphasis">Product ID</th>
+                            <th class="px-4 py-3 text-right font-medium text-medium-emphasis">Qty</th>
+                            <th class="px-4 py-3 text-right font-medium text-medium-emphasis">Unit Price</th>
+                            <th class="px-4 py-3 text-right font-medium text-medium-emphasis">Line Total</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-border">
+                        @foreach (var item in _order.Items)
+                        {
+                            <tr>
+                                <td class="px-4 py-3 font-medium text-high-emphasis">@item.ProductName</td>
+                                <td class="px-4 py-3 text-medium-emphasis">@item.ProductId</td>
+                                <td class="px-4 py-3 text-right text-medium-emphasis">@item.Quantity</td>
+                                <td class="px-4 py-3 text-right text-medium-emphasis">@item.UnitPrice.ToString("C")</td>
+                                <td class="px-4 py-3 text-right font-medium text-high-emphasis">@item.LineTotal.ToString("C")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string OrderId { get; set; } = string.Empty;
+
+    private SalesOrder? _order;
+    private bool _isLoading = true;
+    private string _errorMessage = string.Empty;
+    private string OrderDateText => _order?.OrderDate.ToString("dd MMM yyyy") ?? string.Empty;
+    private string ShippedDateText => _order?.ShippedDate?.ToString("dd MMM yyyy") ?? "Not shipped yet";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await LoadOrderAsync();
+    }
+
+    private async Task LoadOrderAsync()
+    {
+        try
+        {
+            _isLoading = true;
+            _errorMessage = string.Empty;
+            _order = await SalesOrderService.GetByIdAsync(OrderId);
+        }
+        catch
+        {
+            _errorMessage = "Unable to load the sales order right now.";
+            _order = null;
+        }
+        finally
+        {
+            _isLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private static string GetStatusBadgeClass(string status)
+    {
+        var baseClass = "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ";
+
+        return status.ToLowerInvariant() switch
+        {
+            "delivered" => baseClass + "border-success text-success",
+            "shipped" => baseClass + "border-sky-300 text-sky-700",
+            "processing" => baseClass + "border-amber-300 text-amber-700",
+            "cancelled" => baseClass + "border-red-300 text-red-600",
+            _ => baseClass + "border-border text-medium-emphasis"
+        };
+    }
+}

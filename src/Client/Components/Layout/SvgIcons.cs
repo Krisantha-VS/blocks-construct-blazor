@@ -48,6 +48,17 @@ public static class SvgIcons
         </svg>
         """;
 
+        public const string Sales = """
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none"
+                         stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"
+                         viewBox="0 0 24 24">
+                    <rect x="3" y="4" width="18" height="16" rx="2"/>
+                    <path d="M7 8h10"/>
+                    <path d="M7 12h6"/>
+                    <path d="M7 16h4"/>
+                </svg>
+                """;
+
     public const string ChevronRight = """
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none"
              stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"
@@ -120,6 +131,7 @@ public static class SvgIcons
     {
         "users" => Users,
         "store" => Store,
+        "sales" => Sales,
         "dashboard" => Dashboard,
         "user" => User,
         "folder" => Folder,

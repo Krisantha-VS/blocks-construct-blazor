@@ -17,9 +17,13 @@ var runtimeConfig = await bootstrapClient.GetFromJsonAsync<RuntimeClientConfig>(
 var apiBaseUrl = runtimeConfig.MicroserviceApiBaseUrl
     ?? throw new InvalidOperationException("Runtime config is missing MicroserviceApiBaseUrl.");
 var xBlocksKey = runtimeConfig.XBlocksKey;
+var projectSlug = runtimeConfig.ProjectSlug;
 
 if (string.IsNullOrWhiteSpace(xBlocksKey))
     throw new InvalidOperationException("Runtime config is missing XBlocksKey.");
+
+if (string.IsNullOrWhiteSpace(projectSlug))
+    throw new InvalidOperationException("Runtime config is missing ProjectSlug.");
 
 builder.Services.AddSingleton(runtimeConfig);
 
@@ -44,15 +48,13 @@ builder.Services.AddHttpClient<IDeviceService, DeviceService>(ConfigureBlocksApi
 builder.Services.AddHttpClient<IInventoryService, InventoryService>(ConfigureBlocksApiClient)
     .AddHttpMessageHandler<AuthTokenHandler>();
 
-builder.Services.AddHttpClient<ILanguageService, LanguageService>(ConfigureBlocksApiClient);
+builder.Services.AddHttpClient<ISalesOrderApiService, SalesOrderApiService>(httpClient =>
+    {
+        httpClient.BaseAddress = new Uri(builder.HostEnvironment.BaseAddress);
+    })
+    .AddHttpMessageHandler<AuthTokenHandler>();
 
-// "LocalApi" — calls to this app's own Server controllers (e.g. /api/sales-orders).
-// Always uses the same host the WASM was served from.
-builder.Services.AddHttpClient("LocalApi", httpClient =>
-{
-    httpClient.BaseAddress = new Uri(builder.HostEnvironment.BaseAddress);
-    httpClient.DefaultRequestHeaders.TryAddWithoutValidation("x-blocks-key", xBlocksKey);
-});
+builder.Services.AddHttpClient<ILanguageService, LanguageService>(ConfigureBlocksApiClient);
 
 // Default HttpClient also points to own server (for untyped injection via @inject HttpClient).
 builder.Services.AddScoped(sp =>
