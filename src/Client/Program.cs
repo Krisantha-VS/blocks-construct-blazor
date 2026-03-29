@@ -55,6 +55,7 @@ builder.Services.AddHttpClient<ISalesOrderApiService, SalesOrderApiService>(http
     .AddHttpMessageHandler<AuthTokenHandler>();
 
 builder.Services.AddHttpClient<ILanguageService, LanguageService>(ConfigureBlocksApiClient);
+builder.Services.AddHttpClient<ISsoService, SsoService>(ConfigureBlocksApiClient);
 
 // Default HttpClient also points to own server (for untyped injection via @inject HttpClient).
 builder.Services.AddScoped(sp =>

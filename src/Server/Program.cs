@@ -66,6 +66,7 @@ builder.Services.AddHttpClient<IDeviceService, DeviceService>(ConfigureBlocksApi
 builder.Services.AddHttpClient<IInventoryService, InventoryService>(ConfigureBlocksApiClient)
     .AddHttpMessageHandler<AuthTokenHandler>();
 builder.Services.AddHttpClient<ILanguageService, LanguageService>(ConfigureBlocksApiClient);
+builder.Services.AddHttpClient<ISsoService, SsoService>(ConfigureBlocksApiClient);
 
 ApplicationConfigurations.ConfigureServices(builder.Services, new MessageConfiguration
 {

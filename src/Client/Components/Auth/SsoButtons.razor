@@ -1,0 +1,142 @@
+@inject ISsoService SsoService
+@inject IJSRuntime JS
+
+@if (_providers.Count > 0)
+{
+    <div class="flex w-full items-center justify-center">
+        @foreach (var provider in _providers)
+        {
+            <button @onclick="() => HandleSsoClick(provider)"
+                    disabled="@(_loadingProvider == provider.Provider)"
+                    class="flex w-full items-center justify-center gap-2 rounded-md border border-input bg-card h-12 font-bold text-sm text-high-emphasis hover:bg-muted transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+
+                @if (_loadingProvider == provider.Provider)
+                {
+                    <svg class="h-5 w-5 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                }
+                else
+                {
+                    <img src="@provider.IconPath" width="20" height="20"
+                         alt="@provider.Label logo"
+                         class="mr-1" />
+                }
+
+                <span>Log in with @provider.Label</span>
+            </button>
+        }
+    </div>
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
+            @_errorMessage
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public LoginOptions? LoginOptions { get; set; }
+
+    private List<SsoProviderMeta> _providers     = new();
+    private string?               _loadingProvider = null;
+    private string                _errorMessage    = "";
+
+    // Known provider metadata — icon paths under wwwroot/images/sso/
+    private static readonly Dictionary<string, (string Label, string Icon)> KnownProviders =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["microsoft"] = ("Microsoft", "/images/sso/ms.svg"),
+            ["azuread"]   = ("Microsoft", "/images/sso/ms.svg"),
+            ["azure_ad"]  = ("Microsoft", "/images/sso/ms.svg"),
+            ["aad"]       = ("Microsoft", "/images/sso/ms.svg"),
+            ["google"]    = ("Google",    "/images/sso/google.svg"),
+            ["github"]    = ("GitHub",    "/images/sso/github.svg"),
+            ["linkedin"]  = ("LinkedIn",  "/images/sso/linkedin.svg"),
+            ["x"]         = ("X",         "/images/sso/x.svg"),
+        };
+
+    protected override void OnParametersSet()
+    {
+        if (LoginOptions?.SsoInfo == null) return;
+
+        var socialProviders = LoginOptions.SsoInfo
+            .Select(info =>
+            {
+                var (label, icon) = KnownProviders.TryGetValue(info.Provider, out var meta)
+                    ? meta
+                    : (info.Provider, "/images/sso/generic.svg");
+
+                return new SsoProviderMeta
+                {
+                    Provider = info.Provider,
+                    Audience = info.Audience,
+                    Label    = label,
+                    IconPath = icon,
+                };
+            })
+            .ToList();
+
+        var azureProvider = socialProviders
+            .FirstOrDefault(provider => IsAzureProvider(provider.Provider));
+
+        _providers = azureProvider is not null
+            ? new List<SsoProviderMeta> { azureProvider }
+            : socialProviders;
+    }
+
+    private async Task HandleSsoClick(SsoProviderMeta provider)
+    {
+        _errorMessage    = "";
+        _loadingProvider = provider.Provider;
+
+        try
+        {
+            var result = await SsoService.GetSocialLoginEndpointAsync(
+                provider.Provider, provider.Audience);
+
+            if (result == null || !string.IsNullOrEmpty(result.Error))
+            {
+                _errorMessage = result?.Error ?? "Authentication error. Please try again.";
+                return;
+            }
+
+            if (result.RequiresMfa && result.MfaToken != null)
+            {
+                await JS.InvokeVoidAsync("window.location.assign",
+                    $"/verify-mfa?mfa_id={result.MfaToken}" +
+                    $"&mfa_type={result.MfaType}" +
+                    $"&user_name={Uri.EscapeDataString(result.Email ?? "")}" +
+                    $"&sso=true");
+                return;
+            }
+
+            if (string.IsNullOrEmpty(result.ProviderUrl))
+            {
+                _errorMessage = "No redirect URL received. Please contact support.";
+                return;
+            }
+
+            // Navigate browser to the external SSO provider
+            await JS.InvokeVoidAsync("window.location.assign", result.ProviderUrl);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = $"Unexpected error: {ex.Message}";
+        }
+        finally
+        {
+            _loadingProvider = null;
+        }
+    }
+
+    private static bool IsAzureProvider(string providerName)
+    {
+        return providerName.Equals("microsoft", StringComparison.OrdinalIgnoreCase)
+            || providerName.Equals("azuread", StringComparison.OrdinalIgnoreCase)
+            || providerName.Equals("azure_ad", StringComparison.OrdinalIgnoreCase)
+            || providerName.Equals("aad", StringComparison.OrdinalIgnoreCase);
+    }
+}

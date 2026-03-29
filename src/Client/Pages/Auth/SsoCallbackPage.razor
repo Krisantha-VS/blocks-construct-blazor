@@ -1,0 +1,81 @@
+@page "/sso-callback"
+@rendermode @(new InteractiveAutoRenderMode(prerender: false))
+@layout AuthLayout
+@inject ISsoService SsoService
+@inject AppAuthStateProvider AuthState
+@inject NavigationManager Nav
+
+<PageTitle>Signing in...</PageTitle>
+
+<div class="flex flex-col items-center justify-center gap-6 py-8">
+    @if (_isProcessing)
+    {
+        <svg class="h-10 w-10 animate-spin text-primary" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10"
+                    stroke="currentColor" stroke-width="4" />
+            <path class="opacity-75" fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+        <p class="text-sm text-medium-emphasis">Completing sign in...</p>
+    }
+    else if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="w-full rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700" role="alert">
+            <p class="mb-1 font-bold">Sign in failed</p>
+            <p>@_errorMessage</p>
+        </div>
+        <a href="/login"
+           class="block w-full rounded-md bg-primary py-2.5 text-center text-sm
+                  font-extrabold text-white hover:bg-primary/90 transition-colors">
+            Back to Login
+        </a>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "code")]  private string Code  { get; set; } = "";
+    [SupplyParameterFromQuery(Name = "state")] private string State { get; set; } = "";
+
+    private bool   _isProcessing = true;
+    private string _errorMessage = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        if (string.IsNullOrEmpty(Code))
+        {
+            Nav.NavigateTo("/login", replace: true);
+            return;
+        }
+
+        try
+        {
+            var result = await SsoService.ExchangeSocialCodeAsync(Code, State);
+
+            if (result.EnableMfa)
+            {
+                Nav.NavigateTo(
+                    $"/verify-mfa?mfa_id={result.MfaId}" +
+                    $"&mfa_type={result.MfaType}" +
+                    $"&sso=true",
+                    replace: true);
+                return;
+            }
+
+            // Tokens stored + auth state notified inside SsoService
+            Nav.NavigateTo("/identity-management", replace: true);
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.Message.Contains("401") || ex.Message.Contains("400")
+                ? "The sign-in link has expired or is invalid. Please try again."
+                : "An unexpected error occurred. Please try again.";
+        }
+        finally
+        {
+            _isProcessing = false;
+            StateHasChanged();
+        }
+    }
+}

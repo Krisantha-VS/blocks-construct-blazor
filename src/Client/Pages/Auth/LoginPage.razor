@@ -2,6 +2,7 @@
 @rendermode @(new InteractiveAutoRenderMode(prerender: false))
 @layout AuthLayout
 @inject IAuthService AuthService
+@inject ISsoService SsoService
 @inject AppAuthStateProvider AuthState
 @inject NavigationManager Nav
 @inject LanguageState Lang
@@ -25,41 +26,59 @@
         </div>
     }
 
-    <EditForm Model="_model" OnValidSubmit="HandleLogin" class="flex flex-col gap-4">
-        <DataAnnotationsValidator />
+    @if (_loginOptions == null || _loginOptions.PasswordGrantAllowed)
+    {
+        <EditForm Model="_model" OnValidSubmit="HandleLogin" class="flex flex-col gap-4">
+            <DataAnnotationsValidator />
 
-        <div class="flex flex-col gap-1">
-            <label class="text-sm font-normal text-high-emphasis">@T("EMAIL")</label>
-            <InputText @bind-Value="_model.Username"
-                       class="w-full rounded-md border border-input px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                       placeholder="@T("ENTER_YOUR_EMAIL_ADDRESS")" />
-            <ValidationMessage For="@(() => _model.Username)" class="text-xs text-destructive" />
+            <div class="flex flex-col gap-1">
+                <label class="text-sm font-normal text-high-emphasis">@T("EMAIL")</label>
+                <InputText @bind-Value="_model.Username"
+                           class="w-full rounded-md border border-input px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                           placeholder="@T("ENTER_YOUR_EMAIL_ADDRESS")" />
+                <ValidationMessage For="@(() => _model.Username)" class="text-xs text-destructive" />
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <label class="text-sm font-normal text-high-emphasis">@T("PASSWORD")</label>
+                <PasswordInput @bind-Value="_model.Password" Placeholder="@T("ENTER_YOUR_PASSWORD")" />
+                <ValidationMessage For="@(() => _model.Password)" class="text-xs text-destructive" />
+            </div>
+
+            <div class="flex justify-end">
+                <a href="/forgot-password" class="text-sm text-primary hover:text-primary-600 hover:underline">
+                    @T("FORGOT_PASSWORD")
+                </a>
+            </div>
+
+            <button type="submit"
+                    class="w-full rounded-md bg-primary py-2.5 text-sm font-extrabold text-white disabled:opacity-50 hover:bg-primary/90 transition-colors"
+                    disabled="@_isLoading">
+                @(_isLoading ? T("LOADING") : T("LOG_IN"))
+            </button>
+        </EditForm>
+    }
+
+    @if (_loginOptions?.PasswordGrantAllowed == true && _loginOptions?.SocialGrantAllowed == true)
+    {
+        <div class="flex items-center gap-3">
+            <div class="flex-1 border-t border-border"></div>
+            <span class="text-xs font-medium text-low-emphasis">OR</span>
+            <div class="flex-1 border-t border-border"></div>
         </div>
+    }
 
-        <div class="flex flex-col gap-1">
-            <label class="text-sm font-normal text-high-emphasis">@T("PASSWORD")</label>
-            <PasswordInput @bind-Value="_model.Password" Placeholder="@T("ENTER_YOUR_PASSWORD")" />
-            <ValidationMessage For="@(() => _model.Password)" class="text-xs text-destructive" />
-        </div>
-
-        <div class="flex justify-end">
-            <a href="/forgot-password" class="text-sm text-primary hover:text-primary-600 hover:underline">
-                @T("FORGOT_PASSWORD")
-            </a>
-        </div>
-
-        <button type="submit"
-                class="w-full rounded-md bg-primary py-2.5 text-sm font-extrabold text-white disabled:opacity-50 hover:bg-primary/90 transition-colors"
-                disabled="@_isLoading">
-            @(_isLoading ? T("LOADING") : T("LOG_IN"))
-        </button>
-    </EditForm>
+    @if (_loginOptions?.SocialGrantAllowed == true)
+    {
+        <SsoButtons LoginOptions="_loginOptions" />
+    }
 </div>
 
 @code {
-    private SignInRequest _model = new();
-    private string _errorMessage = "";
-    private bool _isLoading;
+    private SignInRequest _model        = new();
+    private string        _errorMessage = "";
+    private bool          _isLoading;
+    private LoginOptions? _loginOptions = null;
 
     protected override void OnInitialized()
     {
@@ -68,16 +87,17 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
-        {
-            return;
-        }
+        if (!firstRender) return;
 
         var token = await AuthService.GetAccessTokenAsync();
         if (!string.IsNullOrEmpty(token))
         {
             Nav.NavigateTo("/identity-management", replace: true);
+            return;
         }
+
+        _loginOptions = await SsoService.GetLoginOptionsAsync();
+        StateHasChanged();
     }
 
     private async Task HandleLogin()
